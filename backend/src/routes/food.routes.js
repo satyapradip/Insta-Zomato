@@ -17,5 +17,8 @@ router.post(
   upload.single("video"),
   foodController.createFoodItem,
 );
+// GET /api/food/ — Public route, lists all food items
+router.get("/", foodController.getAllFoodItems);
+
 
 module.exports = router;
