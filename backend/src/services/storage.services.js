@@ -1,31 +1,36 @@
-// Use the official @imagekit/nodejs SDK (v7+)
-const { ImageKit } = require("@imagekit/nodejs");
+const cloudinary = require("cloudinary").v2;
 
-// Initialize ImageKit with credentials from environment variables
-const imagekit = new ImageKit({
-  publicKey: process.env.IMAGEKIT_PUBLIC_KEY,
-  privateKey: process.env.IMAGEKIT_PRIVATE_KEY,
-  urlEndpoint: process.env.IMAGEKIT_URL_ENDPOINT,
+// Initialize Cloudinary with credentials from environment variables
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 /**
- * Uploads a file buffer to ImageKit.
+ * Uploads a file buffer to Cloudinary.
  * @param {Buffer} fileBuffer - The file buffer (from multer memoryStorage)
- * @param {string} fileName - Unique file name to store on ImageKit
- * @returns {Promise<Object>} ImageKit response containing url, fileId, etc.
+ * @param {string} fileName - Unique public_id to store on Cloudinary
+ * @returns {Promise<Object>} Cloudinary response containing url, public_id, etc.
  */
-async function uploadFile(fileBuffer, fileName) {
-  try {
-    // In @imagekit/nodejs v7, upload lives under the .files sub-resource
-    const response = await imagekit.files.upload({
-      file: fileBuffer,
-      fileName: fileName,
-    });
-    return response;
-  } catch (error) {
-    console.error("Error uploading file to ImageKit:", error);
-    throw error;
-  }
+function uploadFile(fileBuffer, fileName) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "video", // supports mp4, mov, etc.
+        public_id: fileName,
+        folder: "insta-zomato",
+      },
+      (error, result) => {
+        if (error) {
+          console.error("Error uploading file to Cloudinary:", error);
+          return reject(error);
+        }
+        resolve(result);
+      },
+    );
+    uploadStream.end(fileBuffer);
+  });
 }
 
 module.exports = {
