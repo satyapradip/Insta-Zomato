@@ -23,12 +23,12 @@ async function createFoodItem(req, res) {
       uniqueFileName,
     );
 
-    // Persist the food item with the ImageKit-hosted video URL
+    // Persist the food item with the Cloudinary-hosted video URL
     const newFoodItem = new foodModel({
       name,
       description,
       price,
-      video: fileUploadResponse.url, // public URL returned by ImageKit
+      video: fileUploadResponse.secure_url, // public URL returned by Cloudinary
       foodPartner: foodPartnerId,
     });
 
@@ -39,6 +39,17 @@ async function createFoodItem(req, res) {
   }
 }
 
+// For public listing of all food items (no auth required)
+async function getAllFoodItems(req, res) {
+  try {
+    const foodItems = await foodModel.find().populate("foodPartner", "name");
+    res.status(200).json(foodItems);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+}
+
 module.exports = {
   createFoodItem,
+  getAllFoodItems,
 };
