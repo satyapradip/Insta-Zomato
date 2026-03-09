@@ -11,6 +11,7 @@ const authRoutes = require("./routes/auth.routes");
 const foodRoutes = require("./routes/food.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
+const logger = require("./config/logger");
 const {
   globalLimiter,
   authLimiter,
@@ -45,8 +46,10 @@ app.use(
 );
 
 // ── HTTP request logging ───────────────────────────────────────────────────
-// "dev" in development (colorised), "combined" (Apache format) in production
-app.use(morgan(config.isProd ? "combined" : "dev"));
+// Morgan formats the request line; we pipe it through Winston so it gets
+// a timestamp and lands in the combined log file as well as the console.
+// logger.stream.write() is defined at the bottom of logger.js.
+app.use(morgan(config.isProd ? "combined" : "dev", { stream: logger.stream }));
 
 // ── Gzip compression ──────────────────────────────────────────────────────
 app.use(compression());

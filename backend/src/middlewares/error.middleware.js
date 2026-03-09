@@ -1,4 +1,5 @@
 const ApiError = require("../utils/ApiError");
+const logger = require("../config/logger");
 
 /**
  * Global Error Handler Middleware
@@ -52,6 +53,13 @@ const errorMiddleware = (err, req, res, next) => {
   if (err.name === "TokenExpiredError") {
     statusCode = 401;
     message = "Token expired. Please log in again.";
+  }
+
+  // ── Log server errors (5xx) so they appear in the error log file ────────
+  // We only log 5xx — 4xx errors (bad input, not found) are the client's fault
+  // and would create too much noise in the error log.
+  if (statusCode >= 500) {
+    logger.error(err.message, { statusCode, stack: err.stack });
   }
 
   // ── Build the final response ──────────────────────────────────────────

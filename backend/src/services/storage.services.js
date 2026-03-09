@@ -1,5 +1,6 @@
 const cloudinary = require("cloudinary").v2;
 const config = require("../config/index");
+const logger = require("../config/logger");
 
 // Initialize Cloudinary using the centralized config (values come from .env via Zod)
 cloudinary.config({
@@ -24,7 +25,7 @@ function uploadFile(fileBuffer, fileName) {
       },
       (error, result) => {
         if (error) {
-          console.error("Error uploading file to Cloudinary:", error);
+          logger.error("Cloudinary upload failed", { fileName, error: error.message });
           return reject(error);
         }
         resolve(result);
