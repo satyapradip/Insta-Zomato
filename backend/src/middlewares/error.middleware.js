@@ -61,7 +61,7 @@ const errorMiddleware = (err, req, res, next) => {
     message,
     ...(errors.length > 0 && { errors }),
     // Include stack trace only in development — never expose in production
-    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    ...(require("../config/index").isDev && { stack: err.stack }),
   };
 
   return res.status(statusCode).json(response);

@@ -1,6 +1,7 @@
 const foodPartnerModel = require("../models/foodpartner.models");
 const userModel = require("../models/user.models");
 const jwt = require("jsonwebtoken");
+const config = require("../config/index");
 
 async function authFoodPartnerMiddleware(req, res, next) {
   // Accept token from cookie OR Authorization: Bearer <token> header
@@ -14,7 +15,7 @@ async function authFoodPartnerMiddleware(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwt.secret);
     req.decoded = decoded; // attach decoded token to req
 
     const foodPartner = await foodPartnerModel.findById(decoded.id);
@@ -48,7 +49,7 @@ async function authUserMiddleware(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, config.jwt.secret);
     const user = await userModel.findById(decoded.id);
     if (!user) {
       return res.status(401).json({ message: "Unauthorized access" });

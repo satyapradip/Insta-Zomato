@@ -10,6 +10,7 @@ const xssClean = require("xss-clean");
 const authRoutes = require("./routes/auth.routes");
 const foodRoutes = require("./routes/food.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
+const config = require("./config/index");
 const {
   globalLimiter,
   authLimiter,
@@ -26,15 +27,12 @@ app.use(globalLimiter);
 app.use(helmet());
 
 // ── CORS — allow only origins listed in ALLOWED_ORIGINS env var ───────────
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["http://localhost:5173", "http://localhost:3000"];
-
+// config.cors.allowedOrigins is pre-parsed from the validated .env
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow server-to-server / Postman requests (no origin header)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || config.cors.allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS: origin "${origin}" not allowed`));
@@ -48,7 +46,7 @@ app.use(
 
 // ── HTTP request logging ───────────────────────────────────────────────────
 // "dev" in development (colorised), "combined" (Apache format) in production
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.use(morgan(config.isProd ? "combined" : "dev"));
 
 // ── Gzip compression ──────────────────────────────────────────────────────
 app.use(compression());

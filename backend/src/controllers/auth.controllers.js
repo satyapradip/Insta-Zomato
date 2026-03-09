@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
+const config = require("../config/index");
 
 // ── User: register ────────────────────────────────────────────────────────────
 const registerUser = asyncHandler(async (req, res) => {
@@ -22,7 +23,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: user._id, email: user.email },
-    process.env.JWT_SECRET,
+    config.jwt.secret,
     { expiresIn: "1h" },
   );
 
@@ -51,7 +52,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: user._id, email: user.email },
-    process.env.JWT_SECRET,
+    config.jwt.secret,
     { expiresIn: "1h" },
   );
 
@@ -93,26 +94,24 @@ const registerFoodPartner = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: foodPartner._id, email: foodPartner.email },
-    process.env.JWT_SECRET,
+    config.jwt.secret,
     { expiresIn: "1h" },
   );
 
   res.cookie("token", token, { httpOnly: true, secure: false });
 
-  res
-    .status(201)
-    .json(
-      new ApiResponse(
-        201,
-        {
-          id: foodPartner._id,
-          email: foodPartner.email,
-          name: foodPartner.name,
-          phone: foodPartner.phone,
-        },
-        "Food partner registered successfully",
-      ),
-    );
+  res.status(201).json(
+    new ApiResponse(
+      201,
+      {
+        id: foodPartner._id,
+        email: foodPartner.email,
+        name: foodPartner.name,
+        phone: foodPartner.phone,
+      },
+      "Food partner registered successfully",
+    ),
+  );
 });
 
 // ── Food Partner: login ───────────────────────────────────────────────────────
@@ -127,26 +126,24 @@ const loginFoodPartner = asyncHandler(async (req, res) => {
 
   const token = jwt.sign(
     { id: foodPartner._id, email: foodPartner.email },
-    process.env.JWT_SECRET,
+    config.jwt.secret,
     { expiresIn: "1h" },
   );
 
   res.cookie("token", token, { httpOnly: true, secure: false });
 
-  res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        {
-          id: foodPartner._id,
-          email: foodPartner.email,
-          name: foodPartner.name,
-          phone: foodPartner.phone,
-        },
-        "Food partner logged in successfully",
-      ),
-    );
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        id: foodPartner._id,
+        email: foodPartner.email,
+        name: foodPartner.name,
+        phone: foodPartner.phone,
+      },
+      "Food partner logged in successfully",
+    ),
+  );
 });
 
 // ── Food Partner: logout ──────────────────────────────────────────────────────
