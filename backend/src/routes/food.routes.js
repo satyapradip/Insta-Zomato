@@ -2,6 +2,8 @@ const express = require("express");
 const foodController = require("../controllers/food.controllers");
 const authMiddleware = require("../middlewares/auth.middlewares");
 const multer = require("multer");
+const foodValidators = require("../validators/food.validators");
+const validate = require("../middlewares/validate.middleware");
 
 const router = express.Router();
 
@@ -15,10 +17,11 @@ router.post(
   "/",
   authMiddleware.authFoodPartnerMiddleware,
   upload.single("video"),
+  foodValidators.createFoodItem,
+  validate,
   foodController.createFoodItem,
 );
 // GET /api/food/ — Public route, lists all food items
 router.get("/", foodController.getAllFoodItems);
-
 
 module.exports = router;

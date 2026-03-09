@@ -4,6 +4,8 @@ const cors = require("cors");
 const morgan = require("morgan");
 const compression = require("compression");
 const cookieParser = require("cookie-parser");
+const mongoSanitize = require("express-mongo-sanitize");
+const xssClean = require("xss-clean");
 
 const authRoutes = require("./routes/auth.routes");
 const foodRoutes = require("./routes/food.routes");
@@ -55,6 +57,12 @@ app.use(compression());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
+
+// ── NoSQL injection prevention — strips `$` and `.` from req.body / params ─
+app.use(mongoSanitize());
+
+// ── XSS sanitization — strip HTML tags from req.body / req.query ──────────
+app.use(xssClean());
 
 // ── Health check ──────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
