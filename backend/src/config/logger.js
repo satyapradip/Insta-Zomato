@@ -68,9 +68,9 @@ const devFormat = format.combine(
 // Example output (one line per log):
 //   {"level":"error","message":"DB connection failed","timestamp":"2026-03-10T14:32:06.123Z","stack":"..."}
 const prodFormat = format.combine(
-  format.timestamp(),           // ISO 8601 timestamp
+  format.timestamp(), // ISO 8601 timestamp
   format.errors({ stack: true }), // include stack on Error objects
-  format.json(),                // output as a single JSON object per line
+  format.json(), // output as a single JSON object per line
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,14 +87,14 @@ const prodFormat = format.combine(
 // ─────────────────────────────────────────────────────────────────────────────
 const makeRotatingFile = (level, filenamePrefix) =>
   new DailyRotateFile({
-    level,                        // minimum level to write (e.g. "info" or "error")
-    dirname: LOG_DIR,             // which folder to write logs in
+    level, // minimum level to write (e.g. "info" or "error")
+    dirname: LOG_DIR, // which folder to write logs in
     filename: `${filenamePrefix}-%DATE%.log`, // %DATE% gets replaced with e.g. 2026-03-10
-    datePattern: "YYYY-MM-DD",    // one new file per day
-    zippedArchive: true,          // compress files older than today (.gz)
-    maxSize: "20m",               // also rotate if a single file hits 20 MB
-    maxFiles: "14d",              // auto-delete files older than 14 days
-    format: prodFormat,           // always use JSON in files (even in dev)
+    datePattern: "YYYY-MM-DD", // one new file per day
+    zippedArchive: true, // compress files older than today (.gz)
+    maxSize: "20m", // also rotate if a single file hits 20 MB
+    maxFiles: "14d", // auto-delete files older than 14 days
+    format: prodFormat, // always use JSON in files (even in dev)
   });
 
 // ─────────────────────────────────────────────────────────────────────────────

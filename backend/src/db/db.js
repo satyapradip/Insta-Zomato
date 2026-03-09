@@ -7,7 +7,9 @@ function connectDB() {
     // config.db.uri comes from the validated .env — guaranteed to exist
     .connect(config.db.uri)
     .then(() => logger.info("MongoDB connected successfully"))
-    .catch((err) => logger.error("MongoDB connection failed", { error: err.message }));
+    .catch((err) =>
+      logger.error("MongoDB connection failed", { error: err.message }),
+    );
 }
 
 module.exports = connectDB;

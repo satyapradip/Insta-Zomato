@@ -25,7 +25,10 @@ function uploadFile(fileBuffer, fileName) {
       },
       (error, result) => {
         if (error) {
-          logger.error("Cloudinary upload failed", { fileName, error: error.message });
+          logger.error("Cloudinary upload failed", {
+            fileName,
+            error: error.message,
+          });
           return reject(error);
         }
         resolve(result);
