@@ -9,6 +9,9 @@ const xssClean = require("xss-clean");
 
 const authRoutes = require("./routes/auth.routes");
 const foodRoutes = require("./routes/food.routes");
+const feedRoutes = require("./routes/feed.routes");
+const userRoutes = require("./routes/user.routes");
+const cartRoutes = require("./routes/cart.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -75,6 +78,12 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authLimiter, authRoutes);
 // Food routes: upload limiter on POST (video/image), global covers reads
 app.use("/api/food", uploadLimiter, foodRoutes);
+// Discovery Feed: Cursor-based video stream
+app.use("/api/feed", feedRoutes);
+// User Social & Profile routes
+app.use("/api/users", userRoutes);
+// Cart & Checkout routes
+app.use("/api/cart", cartRoutes);
 // Orders route (to be created): 20 req / min limiter
 app.use("/api/orders", orderLimiter);
 
