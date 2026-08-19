@@ -51,32 +51,32 @@
 ## 🔐 PHASE 2 — Authentication & Authorization
 
 ### 2.1 JWT — Refresh Token System
-- [ ] Add `refreshToken` (hashed) field to `user.models.js` and `foodpartner.models.js` and `deliverypartner.models.js`
-- [ ] On login: generate accessToken (15m) + refreshToken (7d), store hashed refresh in DB
-- [ ] `POST /api/auth/refresh` — validate refresh token → issue new access token
-- [ ] `POST /api/auth/logout` — clear both cookies + delete refresh token from DB
-- [ ] HTTP-only, Secure, SameSite=Strict on all auth cookies
+- [x] Add `refreshToken` (hashed) field to `user.models.js` and `foodpartner.models.js` and `deliverypartner.models.js`
+- [x] On login: generate accessToken (15m) + refreshToken (7d), store hashed refresh in DB
+- [x] `POST /api/auth/refresh` — validate refresh token → issue new access token
+- [x] `POST /api/auth/logout` — clear both cookies + delete refresh token from DB
+- [x] HTTP-only, Secure, SameSite=Strict on all auth cookies
 
 ### 2.2 User Auth Endpoints
-- [ ] `POST /api/auth/user/register` — register with name, email, password, phone
-- [ ] `POST /api/auth/user/login`
-- [ ] `POST /api/auth/user/logout`
-- [ ] `POST /api/auth/refresh`
+- [x] `POST /api/auth/user/register` — register with name, email, password, phone
+- [x] `POST /api/auth/user/login`
+- [x] `POST /api/auth/user/logout`
+- [x] `POST /api/auth/refresh`
 - [ ] `POST /api/auth/forgot-password` — send reset email with signed token
 - [ ] `POST /api/auth/reset-password/:token` — validate token, update password
 - [ ] `POST /api/auth/verify-email/:token` — verify email on register
 - [ ] `POST /api/auth/resend-verification` — resend verification email
 
 ### 2.3 Food Partner Auth
-- [ ] `POST /api/auth/partner/register` — name, email, password, phone, restaurantName, FSSAI license number
-- [ ] `POST /api/auth/partner/login`
-- [ ] `POST /api/auth/partner/logout`
+- [x] `POST /api/auth/foodpartner/register` — name, email, password, phone, restaurantName, FSSAI license number
+- [x] `POST /api/auth/foodpartner/login`
+- [x] `POST /api/auth/foodpartner/logout`
 - [ ] Admin approval flow — partner is `isPending` until admin approves
 
 ### 2.4 Delivery Partner Auth
-- [ ] `POST /api/auth/delivery/register` — name, email, phone, vehicleType, vehicleNumber, drivingLicense
-- [ ] `POST /api/auth/delivery/login`
-- [ ] `POST /api/auth/delivery/logout`
+- [x] `POST /api/auth/delivery/register` — name, email, phone, vehicleType, vehicleNumber, drivingLicense
+- [x] `POST /api/auth/delivery/login`
+- [x] `POST /api/auth/delivery/logout`
 - [ ] Admin approval required before they can accept orders
 
 ### 2.5 OAuth (Optional but impressive)
@@ -86,11 +86,11 @@
 - [ ] Link OAuth to existing account if email matches
 
 ### 2.6 Role-Based Access Control (RBAC)
-- [ ] Middleware: `requireAuth` — verify access token
-- [ ] Middleware: `requireUser` — only users
-- [ ] Middleware: `requirePartner` — only food partners
-- [ ] Middleware: `requireDeliveryPartner` — only delivery partners
-- [ ] Middleware: `requireAdmin` — only admin
+- [x] Middleware: `requireAuth` — verify access token
+- [x] Middleware: `requireCustomer` / `requireUser` — only users
+- [x] Middleware: `requireFoodPartner` — only food partners
+- [x] Middleware: `requireDeliveryPartner` — only delivery partners
+- [x] Middleware: `requireAdmin` — only admin
 - [ ] Middleware: `requireOwner(model)` — must own the resource
 
 ---
@@ -122,7 +122,7 @@
 ## 🍔 PHASE 4 — Food Partner & Restaurant
 
 ### 4.1 Partner Profile
-- [ ] FoodPartner model fields: `{ name, email, phone, restaurantName, description, logo, coverImage, FSSAI, cuisine[], address, coordinates, openingHours: { mon: { open, close }, ... }, isOpen, avgRating, totalOrders, isApproved, isActive }`
+- [x] FoodPartner model fields: `{ name, email, phone, restaurantName, description, logo, coverImage, FSSAI, cuisine[], address, coordinates, openingHours: { mon: { open, close }, ... }, isOpen, avgRating, totalOrders, isApproved, isActive }`
 - [ ] `GET /api/partners/:id` — public restaurant profile
 - [ ] `PUT /api/partners/me` — update restaurant details
 - [ ] `PUT /api/partners/me/logo` — upload logo
@@ -132,12 +132,12 @@
 - [ ] `GET /api/partners/me/analytics` — views, orders, revenue, top items
 
 ### 4.2 Menu / Food Items
-- [ ] Food model fields: `{ partner, title, description, price, discountedPrice, category, tags[], thumbnailUrl, videoUrl, cloudinaryPublicId, isVeg, isAvailable, spiceLevel, preparationTime, calories, likeCount, viewCount, orderCount, ratings: { avg, count } }`
-- [ ] `POST /api/food` — create food item (video reel upload to Cloudinary)
-- [ ] `GET /api/food/:id` — single food item detail
-- [ ] `PUT /api/food/:id` — update food item (partner only, owns it)
-- [ ] `DELETE /api/food/:id` — delete food item + purge from Cloudinary
-- [ ] `PUT /api/food/:id/toggle-availability` — mark unavailable without deleting
+- [x] Food model fields: `{ partner, title, description, price, discountedPrice, category, tags[], thumbnailUrl, videoUrl, cloudinaryPublicId, isVeg, isAvailable, spiceLevel, preparationTime, calories, variants[], addOns[], likeCount, viewCount, orderCount, ratings: { avg, count } }`
+- [x] `POST /api/food` — create food item (video reel upload to Cloudinary with auto-poster extraction)
+- [x] `GET /api/food/:id` — single food item detail
+- [x] `PUT /api/food/:id` — update food item (partner only, owns it)
+- [x] `DELETE /api/food/:id` — delete food item + purge from Cloudinary
+- [x] `PATCH /api/food/:id/availability` — mark unavailable without deleting
 - [ ] `GET /api/partners/:id/menu` — all food items of a restaurant (grouped by category)
 - [ ] `GET /api/partners/me/foods` — partner's own food items management view
 
@@ -154,32 +154,31 @@
 ## 🎬 PHASE 5 — Reels / Feed System
 
 ### 5.1 Feed
-- [ ] `GET /api/feed` — main reel feed (cursor-based pagination)
-  - [ ] Query params: `?cursor=<lastId>&limit=10&sort=latest|trending|nearby`
-  - [ ] Response: `{ data: [], nextCursor, hasMore }`
-  - [ ] Populate: partner info, like count, is liked by me, is saved by me, comment count
-  - [ ] Filter out unavailable/deleted items
-- [ ] `GET /api/feed/nearby` — reels from restaurants within radius (requires user location)
-  - [ ] Query params: `?lat=&lng=&radius=5` (km)
-- [ ] Increment `viewCount` on food item when reel is fetched (debounced, once per user per day)
+- [x] `GET /api/feed` — main reel feed (cursor-based pagination)
+  - [x] Query params: `?cursor=<lastId>&limit=10&sort=latest|trending|nearby`
+  - [x] Response: `{ data: [], nextCursor, hasMore }`
+  - [x] Populate: partner info, like count, is liked by me, is saved by me, comment count
+  - [x] Filter out unavailable/deleted items
+- [x] `GET /api/feed` with proximity — distance in km calculated based on user coordinates `?lat=&lng=`
+- [x] Increment `viewCount` on food item when reel is viewed (`POST /api/feed/:id/view`)
 
 ### 5.2 Likes
-- [ ] Like model: `{ user, food, createdAt }` — unique index on `(user, food)`
-- [ ] `POST /api/food/:id/like` — toggle like (idempotent)
+- [x] Like model: `{ user, food, createdAt }` — unique index on `(user, food)`
+- [x] `POST /api/food/:id/like` — toggle like (idempotent, atomic `$inc`)
 - [ ] `GET /api/food/:id/likes` — list users who liked (paginated)
-- [ ] `GET /api/users/me/likes` — all food items I've liked
+- [x] `GET /api/users/me/likes` — all food items I've liked
 
 ### 5.3 Save / Bookmark
-- [ ] Save model: `{ user, food, collection, createdAt }` — unique index on `(user, food)`
-- [ ] `POST /api/food/:id/save` — toggle save
-- [ ] `GET /api/users/me/saved` — all saved reels (paginated)
+- [x] Save model: `{ user, food, collection, createdAt }` — unique index on `(user, food)`
+- [x] `POST /api/food/:id/save` — toggle save
+- [x] `GET /api/users/me/saved` — all saved reels (paginated)
 - [ ] Collections (optional): `POST /api/users/me/collections` — create named collection (like "Weekend cravings")
 - [ ] `POST /api/food/:id/save?collection=<id>` — save to specific collection
 
 ### 5.4 Comments
-- [ ] Comment model: `{ user, food, text, parentComment (for replies), likeCount, isDeleted, createdAt }`
-- [ ] `POST /api/food/:id/comments` — add comment or reply
-- [ ] `GET /api/food/:id/comments` — paginated top-level comments
+- [x] Comment model: `{ user, food, text, parentComment (for replies), likeCount, isDeleted, createdAt }`
+- [x] `POST /api/food/:id/comments` — add comment or reply
+- [x] `GET /api/food/:id/comments` — paginated top-level comments
 - [ ] `GET /api/food/:id/comments/:commentId/replies` — replies to a comment
 - [ ] `PUT /api/food/:id/comments/:commentId` — edit own comment
 - [ ] `DELETE /api/food/:id/comments/:commentId` — soft delete own comment
@@ -197,20 +196,20 @@
 ## 🛒 PHASE 6 — Cart System
 
 ### 6.1 Cart Model
-- [ ] Cart model: `{ user, partner, items: [{ food, quantity, price, name, thumbnail }], subtotal, deliveryFee, taxes, total, couponApplied, discount, updatedAt }`
-- [ ] One cart per user (upsert pattern)
-- [ ] Enforce single-restaurant rule (clear cart if adding from different partner)
+- [x] Cart model: `{ user, partner, items: [{ food, name, thumbnailUrl, isVeg, selectedVariant, selectedAddOns, unitPrice, quantity, itemTotal }], deliveryInstructions[], tipAmount, appliedCoupon, pricing: { subtotal, deliveryFee, platformFee, taxes, discountAmount, grandTotal } }`
+- [x] One cart per user (upsert pattern)
+- [x] Enforce single-restaurant rule (409 Conflict if adding from different partner, optional forceClear)
 
 ### 6.2 Cart Endpoints
-- [ ] `GET /api/cart` — get cart with computed totals and fresh prices
-- [ ] `POST /api/cart/add` — add item (validate food exists and is available)
-  - [ ] If different partner: return `409` with message asking to clear cart
-- [ ] `PUT /api/cart/items/:foodId` — update quantity (0 = remove)
-- [ ] `DELETE /api/cart/items/:foodId` — remove item
-- [ ] `DELETE /api/cart` — clear entire cart
-- [ ] `POST /api/cart/apply-coupon` — validate and apply coupon code
-- [ ] `DELETE /api/cart/coupon` — remove coupon
-- [ ] On checkout: re-validate all prices from DB (prevent stale price attacks)
+- [x] `GET /api/cart` — get cart with computed totals and fresh prices
+- [x] `POST /api/cart/add` — add item with variants, add-ons, and single-restaurant lock
+- [x] `PUT /api/cart/items/:itemId` — update quantity (0 = remove)
+- [x] `DELETE /api/cart/items/:itemId` — remove item
+- [x] `DELETE /api/cart` — clear entire cart
+- [x] `POST /api/cart/coupon` — validate and apply coupon code (percentage / flat with maxDiscount & minOrderValue)
+- [x] `DELETE /api/cart/coupon` — remove coupon
+- [x] `PUT /api/cart/instructions` — update delivery instructions pills and rider tip
+- [x] Dynamic pricing: recalculates GST (5%), delivery fee (₹30), platform fee (₹5), discount, and grand total
 
 ---
 
