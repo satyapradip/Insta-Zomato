@@ -2,10 +2,11 @@ const express = require("express");
 const authController = require("../controllers/auth.controllers");
 const authValidators = require("../validators/auth.validators");
 const validate = require("../middlewares/validate.middleware");
+const { requireAuth } = require("../middlewares/auth.middlewares");
 
 const router = express.Router();
 
-// ── User auth ────────────────────────────────────────────────────────────────
+// ── User Auth Routes ─────────────────────────────────────────────────────────
 router.post(
   "/user/register",
   authValidators.registerUser,
@@ -18,9 +19,9 @@ router.post(
   validate,
   authController.loginUser,
 );
-router.post("/user/logout", authController.logoutUser);
+router.post("/user/logout", requireAuth, authController.logoutUser);
 
-// ── Food partner auth ────────────────────────────────────────────────────────
+// ── Food Partner Auth Routes ─────────────────────────────────────────────────
 router.post(
   "/foodpartner/register",
   authValidators.registerFoodPartner,
@@ -33,6 +34,33 @@ router.post(
   validate,
   authController.loginFoodPartner,
 );
-router.post("/foodpartner/logout", authController.logoutFoodPartner);
+router.post(
+  "/foodpartner/logout",
+  requireAuth,
+  authController.logoutFoodPartner,
+);
+
+// ── Delivery Partner Auth Routes ─────────────────────────────────────────────
+router.post(
+  "/delivery/register",
+  authValidators.registerDeliveryPartner,
+  validate,
+  authController.registerDeliveryPartner,
+);
+router.post(
+  "/delivery/login",
+  authValidators.loginDeliveryPartner,
+  validate,
+  authController.loginDeliveryPartner,
+);
+router.post(
+  "/delivery/logout",
+  requireAuth,
+  authController.logoutDeliveryPartner,
+);
+
+// ── Token Refresh & Profile (Universal) ──────────────────────────────────────
+router.post("/refresh", authController.refreshTokens);
+router.get("/me", requireAuth, authController.getCurrentProfile);
 
 module.exports = router;
