@@ -30,8 +30,11 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-// Connect to MongoDB
-connectDB();
+// Connect to PostgreSQL (Neon) via Prisma
+const { connectPostgres } = require("./src/db/prisma");
+connectPostgres().catch((err) => {
+  logger.error("Failed to connect to PostgreSQL:", err);
+});
 
 // Start the HTTP server on the port defined in .env (defaults to 3000)
 app.listen(config.port, () => {

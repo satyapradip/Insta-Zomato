@@ -1,0 +1,396 @@
+// Prisma Schema for Insta-Zomato (PostgreSQL / Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  customer
+  admin
+}
+
+enum VehicleType {
+  bike
+  scooter
+  electric_vehicle
+  cycle
+}
+
+enum SpiceLevel {
+  mild
+  medium
+  hot
+}
+
+enum CouponType {
+  percent
+  flat
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  PICKED_UP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  WALLET
+  COD
+}
+
+// ── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id              String    @id @default(uuid())
+  fullName        String
+  email           String    @unique
+  password        String
+  phone           String?
+  avatarUrl       String?   @default("")
+  role            Role      @default(customer)
+  preferences     Json?     @default("{\"isVegOnly\": false, \"spiceLevel\": \"medium\", \"favoriteCuisines\": [], \"allergies\": []}")
+  refreshToken    String?
+  isEmailVerified Boolean   @default(false)
+  isBanned        Boolean   @default(false)
+  
+  addresses       Address[]
+  cart            Cart?
+  orders          Order[]
+  likes           Like[]
+  saves           Save[]
+  comments        Comment[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([email])
+}
+
+model FoodPartner {
+  id                 String    @id @default(uuid())
+  name               String
+  email              String    @unique
+  password           String
+  phone              String
+  restaurantName     String
+  description        String?   @default("")
+  logo               String?   @default("")
+  coverImage         String?   @default("")
+  fssaiLicenseNumber String?   @default("")
+  cuisine            String[]  @default([])
+  address            String?   @default("")
+  city               String?   @default("")
+  pincode            String?   @default("")
+  latitude           Float     @default(12.9716)
+  longitude          Float     @default(77.5946)
+  openingHours       Json?     @default("{\"openTime\": \"10:00\", \"closeTime\": \"23:00\", \"daysOpen\": [\"Monday\", \"Tuesday\", \"Wednesday\", \"Thursday\", \"Friday\", \"Saturday\", \"Sunday\"]}")
+  isOpen             Boolean   @default(true)
+  isApproved         Boolean   @default(false)
+  avgRating          Float     @default(0)
+  totalRatings       Int       @default(0)
+  refreshToken       String?
+
+  foods              Food[]
+  orders             Order[]
+  carts              Cart[]
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([email])
+  @@index([city])
+}
+
+model DeliveryPartner {
+  id                   String       @id @default(uuid())
+  name                 String
+  email                String       @unique
+  password             String
+  phone                String
+  vehicleType          VehicleType  @default(bike)
+  vehicleNumber        String?      @default("")
+  drivingLicenseNumber String?      @default("")
+  latitude             Float        @default(12.9716)
+  longitude            Float        @default(77.5946)
+  isOnline             Boolean      @default(false)
+  isApproved           Boolean      @default(false)
+  currentOrderId       String?
+  rating               Float        @default(5.0)
+  totalDeliveries      Int          @default(0)
+  refreshToken         String?
+
+  orders               Order[]
+
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([email])
+  @@index([isOnline])
+}
+
+model Food {
+  id                 String        @id @default(uuid())
+  foodPartnerId      String
+  foodPartner        FoodPartner   @relation(fields: [foodPartnerId], references: [id], onDelete: Cascade)
+  name               String
+  description        String?       @default("")
+  price              Float
+  discountedPrice    Float?
+  category           String        @default("General")
+  tags               String[]      @default([])
+  video              String
+  thumbnailUrl       String?       @default("")
+  cloudinaryPublicId String?       @default("")
+  isVeg              Boolean       @default(true)
+  spiceLevel         SpiceLevel    @default(medium)
+  preparationTime    Int           @default(20)
+  calories           Int           @default(0)
+  isAvailable        Boolean       @default(true)
+  likeCount          Int           @default(0)
+  saveCount          Int           @default(0)
+  commentCount       Int           @default(0)
+  viewCount          Int           @default(0)
+  avgRating          Float         @default(0)
+  totalRatings       Int           @default(0)
+
+  variants           FoodVariant[]
+  addOns             FoodAddOn[]
+  likes              Like[]
+  saves              Save[]
+  comments           Comment[]
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([foodPartnerId])
+  @@index([category])
+  @@index([isAvailable])
+}
+
+model FoodVariant {
+  id     String @id @default(uuid())
+  foodId String
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  name   String
+  price  Float
+
+  @@index([foodId])
+}
+
+model FoodAddOn {
+  id     String @id @default(uuid())
+  foodId String
+  food   Food   @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  name   String
+  price  Float
+
+  @@index([foodId])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodId    String
+  food      Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, foodId])
+  @@index([foodId])
+}
+
+model Save {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodId     String
+  food       Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  collection String?  @default("default")
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, foodId])
+  @@index([foodId])
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodId    String
+  food      Food      @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  text      String
+  likeCount Int       @default(0)
+  isDeleted Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([foodId])
+  @@index([parentId])
+}
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique
+  type          CouponType @default(percent)
+  value         Float
+  minOrderValue Float      @default(0)
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int        @default(0)
+  expiresAt     DateTime?
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+
+  @@index([code])
+}
+
+model Cart {
+  id                   String       @id @default(uuid())
+  userId               String       @unique
+  user                 User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerId            String?
+  partner              FoodPartner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  items                CartItem[]
+  deliveryInstructions String[]     @default([])
+  tipAmount            Float        @default(0)
+  appliedCoupon        Json?
+  pricing              Json?        @default("{\"subtotal\": 0, \"deliveryFee\": 0, \"platformFee\": 0, \"taxes\": 0, \"discountAmount\": 0, \"grandTotal\": 0}")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([userId])
+}
+
+model CartItem {
+  id              String   @id @default(uuid())
+  cartId          String
+  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  foodId          String
+  food            Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  name            String
+  thumbnailUrl    String?  @default("")
+  isVeg           Boolean  @default(true)
+  selectedVariant Json?
+  selectedAddOns  Json?
+  unitPrice       Float
+  quantity        Int      @default(1)
+  itemTotal       Float
+
+  @@index([cartId])
+  @@index([foodId])
+}
+
+model Address {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String   @default("Home")
+  recipientName String?  @default("")
+  street        String
+  landmark      String?  @default("")
+  city          String
+  state         String
+  pincode       String
+  latitude      Float    @default(12.9716)
+  longitude     Float    @default(77.5946)
+  contactPhone  String?  @default("")
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Order {
+  id                       String           @id @default(uuid())
+  orderNumber              String           @unique
+  userId                   String
+  user                     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partnerId                String
+  partner                  FoodPartner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  deliveryPartnerId        String?
+  deliveryPartner          DeliveryPartner? @relation(fields: [deliveryPartnerId], references: [id], onDelete: SetNull)
+  items                    OrderItem[]
+  deliveryAddress          Json
+  restaurantSnapshot       Json
+  pricing                  Json
+  appliedCoupon            Json?
+  deliveryInstructions     String[]         @default([])
+  status                   OrderStatus      @default(PENDING)
+  paymentStatus            PaymentStatus    @default(PENDING)
+  paymentMethod            PaymentMethod    @default(COD)
+  razorpayOrderId          String?
+  razorpayPaymentId        String?
+  deliveryOtp              String?
+  plainOtp                 String?
+  timeline                 OrderTimeline[]
+  cancellation             Json?
+  estimatedPrepTimeMinutes Int              @default(25)
+  estimatedDeliveryTime    DateTime?
+  actualDeliveryTime       DateTime?
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([partnerId])
+  @@index([deliveryPartnerId])
+  @@index([status])
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  foodId          String
+  food            Food     @relation(fields: [foodId], references: [id], onDelete: Cascade)
+  name            String
+  thumbnailUrl    String?  @default("")
+  isVeg           Boolean  @default(true)
+  selectedVariant Json?
+  selectedAddOns  Json?
+  unitPrice       Float
+  quantity        Int
+  itemTotal       Float
+
+  @@index([orderId])
+  @@index([foodId])
+}
+
+model OrderTimeline {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  timestamp DateTime @default(now())
+  note      String?  @default("")
+  actorRole String   @default("system")
+  actorId   String?
+
+  @@index([orderId])
+}
