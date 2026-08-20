@@ -110,7 +110,7 @@ gantt
   - Delivery instructions pill selection (`Leave at door`, `Don't ring bell`).
 - **DoD:** Cart guarantees zero client-side price tampering and strictly preserves single-restaurant integrity.
 
-#### Phase 7: Order Lifecycle & State Machine *(Target for Next Session)*
+#### Phase 7: Order Lifecycle & State Machine *(Completed)*
 - **Deliverables:**
   - Order model with complete status transitions (`PENDING` $\to$ `CONFIRMED` $\to$ `PREPARING` $\to$ `READY_FOR_PICKUP` $\to$ `PICKED_UP` $\to$ `OUT_FOR_DELIVERY` $\to$ `DELIVERED`).
   - 4-digit cryptographically generated Delivery OTP.

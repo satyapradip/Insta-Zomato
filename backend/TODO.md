@@ -213,41 +213,40 @@
 
 ---
 
-## 📋 PHASE 7 — Order System
+## 📋 PHASE 7 — Order System *(Completed)*
 
 ### 7.1 Order Model
-- [ ] Order model: `{ user, partner, deliveryPartner, items: [...snapshot], deliveryAddress, status, paymentStatus, paymentMethod, paymentId, subtotal, deliveryFee, taxes, discount, total, otp (for delivery confirmation), timeline: [{ status, timestamp, note }], cancelReason, refundStatus, estimatedDelivery, actualDelivery, createdAt }`
-- [ ] Status enum: `pending → confirmed → preparing → ready_for_pickup → picked_up → out_for_delivery → delivered → cancelled → refunded`
+- [x] Order model: `{ user, partner, deliveryPartner, items: [...snapshot], deliveryAddress, restaurantSnapshot, status, paymentStatus, paymentMethod, pricing, deliveryOtp, timeline: [{ status, timestamp, note, actorRole }], cancellation, estimatedDeliveryTime, actualDeliveryTime, createdAt }`
+- [x] Status enum: `PENDING → CONFIRMED → PREPARING → READY_FOR_PICKUP → PICKED_UP → OUT_FOR_DELIVERY → DELIVERED → CANCELLED → FAILED`
 
 ### 7.2 Order Endpoints (User)
-- [ ] `POST /api/orders` — place order from cart
-  - [ ] Re-validate prices, stock
-  - [ ] Create Razorpay order
-  - [ ] Clear cart on success
-- [ ] `GET /api/orders` — order history (paginated, most recent first)
-- [ ] `GET /api/orders/:id` — order detail with full timeline
-- [ ] `POST /api/orders/:id/cancel` — cancel (only if `pending` or `confirmed`)
-- [ ] `POST /api/orders/:id/rate` — submit rating after delivery
-- [ ] `GET /api/orders/:id/track` — live tracking data (delivery partner GPS)
+- [x] `POST /api/orders` — place order from cart (snapshots items, pricing, delivery address, creates hashed OTP, clears cart)
+- [x] `GET /api/orders` — order history (paginated, most recent first)
+- [x] `GET /api/orders/:id` — order detail with full timeline
+- [x] `POST /api/orders/:id/cancel` — cancel (only if `pending` or `confirmed`)
+- [ ] `POST /api/orders/:id/rate` — submit rating after delivery (Phase 5 / 11)
+- [x] `GET /api/orders/:id/track` — live tracking data (partner & delivery partner coordinates, address, status timeline)
 
 ### 7.3 Order Endpoints (Food Partner)
-- [ ] `GET /api/partner/orders` — incoming orders (filter by status)
-- [ ] `PUT /api/partner/orders/:id/confirm` — confirm order, set prep time
-- [ ] `PUT /api/partner/orders/:id/ready` — mark ready for pickup
-- [ ] `PUT /api/partner/orders/:id/cancel` — cancel with reason
+- [x] `GET /api/orders/partner/orders` — incoming orders (filter by status, paginated)
+- [x] `PUT /api/orders/:id/confirm` — confirm order, set prep time
+- [x] `PUT /api/orders/:id/preparing` — mark cooking in progress
+- [x] `PUT /api/orders/:id/ready` — mark ready for pickup
+- [x] `PUT /api/orders/:id/partner-cancel` — cancel with mandatory reason
 
 ### 7.4 Order Endpoints (Delivery Partner)
-- [ ] `GET /api/delivery/orders/available` — nearby ready-for-pickup orders
-- [ ] `POST /api/delivery/orders/:id/accept` — accept delivery
-- [ ] `PUT /api/delivery/orders/:id/picked-up` — mark picked up from restaurant
-- [ ] `PUT /api/delivery/orders/:id/delivered` — mark delivered (validate OTP from user)
-- [ ] `PUT /api/delivery/orders/:id/failed` — failed delivery with reason
+- [x] `GET /api/orders/rider/available` — nearby ready-for-pickup orders
+- [x] `POST /api/orders/:id/accept-delivery` — accept delivery assignment
+- [x] `PUT /api/orders/:id/pickup` — mark picked up from restaurant
+- [x] `PUT /api/orders/:id/out-for-delivery` — mark en route to customer
+- [x] `PUT /api/orders/:id/deliver` — mark delivered (strictly validates 4-digit cryptographic OTP from user)
+- [x] `PUT /api/orders/:id/delivery-failed` — failed delivery with reason
 
-### 7.5 OTP for Delivery Confirmation
-- [ ] Generate 4-digit OTP when order is `out_for_delivery`
-- [ ] Send OTP to user via SMS (Twilio / AWS SNS)
-- [ ] Delivery partner enters OTP to confirm delivery
-- [ ] OTP expires in 10 minutes
+### 7.5 Cryptographic OTP for Delivery Confirmation
+- [x] Cryptographically generated 4-digit numeric OTP (1000 - 9999) using `crypto.randomInt`
+- [x] Hashed with bcrypt before storage in database
+- [x] Returned only to the placing customer, hidden from rider/partner
+- [x] Delivery partner must submit matching OTP to conclude delivery and transition order to `DELIVERED`
 
 ---
 

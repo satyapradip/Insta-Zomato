@@ -90,19 +90,25 @@
 
 ## 🚀 Sprint 4: Order FSM, Delivery OTP & Razorpay Payments *(START HERE TOMORROW)*
 
-### 🔹 Task Chunk 4.1: Order Finite State Machine
+### 🔹 Task Chunk 4.1: Order Finite State Machine `[COMPLETED]`
 - **Files Involved:**
-  - `[NEW]` `backend/src/models/order.models.js`
-  - `[NEW]` `backend/src/controllers/order.controllers.js`
-  - `[NEW]` `backend/src/routes/order.routes.js`
-- **Specification:**
-  - Implement `POST /api/orders`: Converts cart items into an active Order, creates 4-digit crypto Delivery OTP, and sets status to `PENDING`.
-  - Store delivery snapshot (items, pricing, instructions, recipient address, restaurant location).
-  - Implement status update handlers:
-    - Partner: `PUT /api/orders/:id/confirm`, `PUT /api/orders/:id/ready`
-    - Rider: `PUT /api/orders/:id/pickup`, `PUT /api/orders/:id/deliver` (Validates OTP)
-    - Customer: `POST /api/orders/:id/cancel`
-- **Acceptance Criteria:** Attempting to transition directly from `CONFIRMED` to `DELIVERED` without pickup or OTP fails with `400 Bad Request`.
+  - `[CREATED]` `backend/src/models/address.models.js`
+  - `[CREATED]` `backend/src/models/order.models.js`
+  - `[CREATED]` `backend/src/services/orderStateMachine.services.js`
+  - `[CREATED]` `backend/src/controllers/order.controllers.js`
+  - `[CREATED]` `backend/src/controllers/address.controllers.js`
+  - `[CREATED]` `backend/src/routes/order.routes.js`
+  - `[MODIFIED]` `backend/src/validators/order.validators.js`
+  - `[MODIFIED]` `backend/src/routes/user.routes.js`
+  - `[MODIFIED]` `backend/src/app.js`
+  - `[CREATED]` `backend/src/tests/order_fsm.test.js`
+- **Delivered:**
+  - `POST /api/orders`: Converts cart items into active Order, creates 4-digit crypto Delivery OTP (bcrypt-hashed), snapshots restaurant & items & pricing, and sets status to `PENDING`.
+  - Enforced strict state transitions (`PENDING` $\to$ `CONFIRMED` $\to$ `PREPARING` $\to$ `READY_FOR_PICKUP` $\to$ `PICKED_UP` $\to$ `OUT_FOR_DELIVERY` $\to$ `DELIVERED`).
+  - Partner status handlers: `PUT /api/orders/:id/confirm`, `PUT /api/orders/:id/preparing`, `PUT /api/orders/:id/ready`, `PUT /api/orders/:id/partner-cancel`.
+  - Rider status handlers: `GET /api/orders/rider/available`, `POST /api/orders/:id/accept-delivery`, `PUT /api/orders/:id/pickup`, `PUT /api/orders/:id/out-for-delivery`, `PUT /api/orders/:id/deliver` (with cryptographic OTP verification), `PUT /api/orders/:id/delivery-failed`.
+  - Customer order handlers: `GET /api/orders`, `GET /api/orders/:id`, `POST /api/orders/:id/cancel`, `GET /api/orders/:id/track`.
+  - Complete 42-test automated integration test suite verifying 100% of FSM transition invariants, OTP verification, and RBAC guards.
 
 ### 🔹 Task Chunk 4.2: Razorpay Payment & Webhook Verification
 - **Files Involved:**

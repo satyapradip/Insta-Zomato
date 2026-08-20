@@ -123,6 +123,11 @@ All variables are validated at startup via [`src/config/index.js`](file:///e:/In
 - **Decision:** Adopt shadcn/ui with Radix primitives and Vaul mobile drawers across all user-facing views.
 - **Status:** Approved in `03-DESIGN.md`.
 
+### ADR-006: Cryptographic Delivery OTP & Strict Finite State Machine (FSM)
+- **Context:** Order status tampering and unverified delivery claims lead to fraudulent order completion and customer disputes.
+- **Decision:** Orders follow a strict linear state transition graph (`PENDING` $\to$ `CONFIRMED` $\to$ `PREPARING` $\to$ `READY_FOR_PICKUP` $\to$ `PICKED_UP` $\to$ `OUT_FOR_DELIVERY` $\to$ `DELIVERED`). Terminal states (`DELIVERED`, `CANCELLED`, `FAILED`) are permanently immutable. A cryptographically generated 4-digit OTP (`crypto.randomInt(1000, 10000)`) is hashed with bcrypt before database storage and revealed exclusively to the ordering customer. Transition to `DELIVERED` strictly requires the delivery partner to submit and cryptographically match the customer's OTP.
+- **Status:** Implemented in `src/services/orderStateMachine.services.js` and `src/models/order.models.js`.
+
 ---
 
 ## 5. API Route Status & Endpoints Inventory
@@ -158,6 +163,11 @@ Implemented & Verified:
   [GET]    /api/users/me/likes           -> List all food reels liked by current user
   [GET]    /api/users/me/saved           -> List all food reels saved by current user
 
+  [POST]   /api/users/addresses          -> Save delivery address (Home/Work/Other)
+  [GET]    /api/users/addresses          -> List saved delivery addresses
+  [DELETE] /api/users/addresses/:id      -> Delete saved address
+  [PUT]    /api/users/addresses/:id/default -> Set default delivery address
+
   [GET]    /api/cart                     -> Get current user cart with live pricing and itemized breakdown
   [POST]   /api/cart/add                 -> Add item/variant/addons to cart with single-restaurant lock
   [PUT]    /api/cart/items/:itemId       -> Update item quantity in cart (0 to remove)
@@ -167,29 +177,44 @@ Implemented & Verified:
   [DELETE] /api/cart/coupon              -> Remove applied coupon
   [PUT]    /api/cart/instructions        -> Update delivery instruction pills & tip amount
 
-Pending Implementation (Tomorrow's Targets):
-  [POST]   /api/orders                   -> Create order from active cart
-  [GET]    /api/orders/:id               -> Fetch order status & timeline
+  [POST]   /api/orders                   -> Create order from cart, snapshot pricing, generate crypto OTP
+  [GET]    /api/orders                   -> Paginated customer order history (sorted newest first)
+  [GET]    /api/orders/:id               -> Detailed order view with 7-stage audit timeline
+  [POST]   /api/orders/:id/cancel        -> Customer cancellation (PENDING or CONFIRMED state only)
+  [GET]    /api/orders/:id/track         -> Real-time order tracking (rider GPS, restaurant, timeline)
+  [GET]    /api/orders/partner/orders    -> Partner kitchen incoming and active orders queue
+  [PUT]    /api/orders/:id/confirm       -> Partner confirms order with estimated prep time
+  [PUT]    /api/orders/:id/preparing     -> Partner marks cooking in progress
+  [PUT]    /api/orders/:id/ready         -> Partner marks food packed (READY_FOR_PICKUP)
+  [PUT]    /api/orders/:id/partner-cancel-> Partner cancels order with mandatory reason
+  [GET]    /api/orders/rider/available   -> Query open ready orders for delivery dispatch
+  [POST]   /api/orders/:id/accept-delivery -> Rider claims/accepts delivery assignment
+  [PUT]    /api/orders/:id/pickup        -> Rider picks up food from restaurant
+  [PUT]    /api/orders/:id/out-for-delivery -> Rider marks transit to customer
+  [PUT]    /api/orders/:id/deliver       -> Rider verifies 4-digit OTP & completes delivery
+  [PUT]    /api/orders/:id/delivery-failed -> Rider marks delivery failed with reason
+  [GET]    /api/orders/admin/all         -> Global order stream for admin panel
+
+Pending Implementation:
   [POST]   /api/payment/create-order     -> Generate Razorpay order
   [POST]   /api/payment/verify           -> Verify Razorpay HMAC-SHA256 signature
-  [POST]   /api/orders/:id/verify-otp    -> Rider verifies 4-digit delivery OTP
-  [GET]    /api/orders/:id/track         -> Live order GPS & status tracking
+  [POST]   /api/payment/webhook          -> Razorpay asynchronous webhook processor
   [PUT]    /api/delivery/location        -> Rider updates real-time GPS (3-5s throttled)
 ```
 
 ---
 
-## 6. Session Checkpoint & Tomorrow's Quickstart
+## 6. Session Checkpoint & Next Steps
 
-### What We Completed Today:
+### What We Completed:
 1. **Sprint 1 (Auth & RBAC):** Dual JWT with token reuse revocation, Bcrypt refresh token database hashing, RBAC middlewares (`requireCustomer`, `requireFoodPartner`, `requireDeliveryPartner`), and multi-role models.
 2. **Sprint 2 (Media & Discovery Feed):** Food model with Flipkart-style variants & add-ons, Cloudinary poster generation, cursor-based video discovery feed with proximity in km, and social interactions (Likes, Saves, Comments).
 3. **Sprint 3 (Cart & Pricing Engine):** Single-restaurant lock with 409 Conflict handler, coupon discount calculator, itemized bills (GST, delivery fee, platform fee, rider tip), and delivery instruction pills.
+4. **Sprint 4 / Phase 7 (Order FSM & Lifecycle):** Finite state machine with role-based transitions, 4-digit cryptographically generated & bcrypt-hashed Delivery OTP, address book system, full role endpoints for Customer/Partner/Rider/Admin, and 42 automated integration tests.
 
-### Tomorrow's Exact Starting Point:
-👉 **Sprint 4: Order Finite State Machine & Razorpay Payments**
-- `backend/src/models/order.models.js` (Status transitions, snapshot of items, 4-digit Delivery OTP)
-- `backend/src/controllers/order.controllers.js` & `backend/src/routes/order.routes.js`
-- `backend/src/services/payment.services.js` (Razorpay order creation & HMAC verification)
+### Next Starting Point:
+👉 **Phase 8: Razorpay Payments & Webhook Verification**
+- `backend/src/services/payment.services.js` (Razorpay order generation & HMAC-SHA256 signature verification)
 - `backend/src/controllers/payment.controllers.js` & `backend/src/routes/payment.routes.js`
-- Next: **Sprint 5: Socket.io Real-Time Order & GPS Hub** or **Sprint 6: Next.js 16 + shadcn/ui Frontend**.
+- `backend/src/routes/payment.routes.js` (Asynchronous webhook handler with idempotency)
+- Next: **Phase 10: Socket.io Real-Time Order & GPS Hub** or **Frontend Workspace Setup**.
