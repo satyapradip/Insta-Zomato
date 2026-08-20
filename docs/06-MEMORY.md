@@ -48,7 +48,7 @@ e:/Insta_Zomato/
 ### Backend Dependencies (`backend/package.json`):
 - **Runtime:** Node.js v22+
 - **Framework:** Express.js `^5.2.1` (Promise-native routing)
-- **Database:** MongoDB via Mongoose `^9.2.1`
+- **Database:** PostgreSQL (via Neon Serverless) & Prisma ORM `^6.4.1` (with optional MongoDB Mongoose backwards compatibility)
 - **Security & Headers:** Helmet `^8.1.0`, CORS `^2.8.6`, Express Mongo Sanitize `^2.2.0`, XSS Clean `^0.1.4`
 - **Rate Limiting:** Express Rate Limit `^8.3.0`
 - **Validation:** Zod `^4.3.6` (Config startup), Express Validator `^7.3.1` (Route inputs)
@@ -127,6 +127,11 @@ All variables are validated at startup via [`src/config/index.js`](file:///e:/In
 - **Context:** Order status tampering and unverified delivery claims lead to fraudulent order completion and customer disputes.
 - **Decision:** Orders follow a strict linear state transition graph (`PENDING` $\to$ `CONFIRMED` $\to$ `PREPARING` $\to$ `READY_FOR_PICKUP` $\to$ `PICKED_UP` $\to$ `OUT_FOR_DELIVERY` $\to$ `DELIVERED`). Terminal states (`DELIVERED`, `CANCELLED`, `FAILED`) are permanently immutable. A cryptographically generated 4-digit OTP (`crypto.randomInt(1000, 10000)`) is hashed with bcrypt before database storage and revealed exclusively to the ordering customer. Transition to `DELIVERED` strictly requires the delivery partner to submit and cryptographically match the customer's OTP.
 - **Status:** Implemented in `src/services/orderStateMachine.services.js` and `src/models/order.models.js`.
+
+### ADR-007: Relational Database Migration to PostgreSQL & Prisma ORM via Neon
+- **Context:** MongoDB SRV records caused ISP-level DNS resolution failures and required manual schema maintenance. Relational integrity (Foreign Keys, Cascade Deletes, Enums, Transactions) is critical for order financial states and delivery fleet operations.
+- **Decision:** Migrated database layer to Serverless PostgreSQL (Neon) with Prisma ORM `v6.4.1`. All 16 entity tables, composite unique indexes, relations, and enums are defined in `prisma/schema.prisma`. Controllers utilize type-safe PrismaClient queries and Prisma Studio visual UI.
+- **Status:** Implemented in `prisma/schema.prisma`, `src/db/prisma.js`, and verified across all controllers.
 
 ---
 
