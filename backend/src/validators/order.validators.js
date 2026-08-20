@@ -4,7 +4,8 @@ const { body, param, query } = require("express-validator");
 const placeOrder = [
   body("addressId")
     .optional()
-    .isMongoId()
+    .isString()
+    .notEmpty()
     .withMessage("Invalid address ID format"),
 
   body("deliveryAddress")

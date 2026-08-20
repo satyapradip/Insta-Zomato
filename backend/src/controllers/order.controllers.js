@@ -1,8 +1,5 @@
-const orderModel = require("../models/order.models");
-const cartModel = require("../models/cart.models");
-const addressModel = require("../models/address.models");
-const foodPartnerModel = require("../models/foodpartner.models");
-const deliveryPartnerModel = require("../models/deliverypartner.models");
+const { prisma } = require("../db/prisma");
+const bcrypt = require("bcrypt");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
@@ -14,12 +11,85 @@ const {
   createTimelineEntry,
 } = require("../services/orderStateMachine.services");
 
+function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
+  let subtotal = 0;
+  items.forEach((item) => {
+    subtotal += item.unitPrice * item.quantity;
+  });
+
+  const deliveryFee = 30;
+  const platformFee = 5;
+  const taxes = Math.round(subtotal * 0.05 * 100) / 100;
+
+  let discountAmount = 0;
+  if (appliedCoupon && appliedCoupon.discountAmount) {
+    discountAmount = Math.min(Number(appliedCoupon.discountAmount), subtotal);
+  }
+
+  const grandTotal = Math.max(
+    0,
+    subtotal + deliveryFee + platformFee + taxes + Number(tipAmount || 0) - discountAmount,
+  );
+
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    deliveryFee,
+    platformFee,
+    taxes,
+    discountAmount: Math.round(discountAmount * 100) / 100,
+    tipAmount: Number(tipAmount || 0),
+    grandTotal: Math.round(grandTotal * 100) / 100,
+  };
+}
+
+function formatOrderResponse(order, currentUserId, currentUserRole) {
+  if (!order) return null;
+  const isOwner = currentUserRole === "customer" && order.userId === currentUserId;
+  const resp = {
+    ...order,
+    _id: order.id,
+    user: order.user ? { ...order.user, _id: order.user.id } : order.userId,
+    partner: order.partner
+      ? {
+          ...order.partner,
+          _id: order.partner.id,
+          location: {
+            type: "Point",
+            coordinates: [order.partner.longitude, order.partner.latitude],
+          },
+        }
+      : order.partnerId,
+    deliveryPartner: order.deliveryPartner
+      ? {
+          ...order.deliveryPartner,
+          _id: order.deliveryPartner.id,
+          currentLocation: {
+            type: "Point",
+            coordinates: [order.deliveryPartner.longitude, order.deliveryPartner.latitude],
+          },
+        }
+      : order.deliveryPartnerId,
+    items: (order.items || []).map((item) => ({
+      ...item,
+      _id: item.id,
+      food: item.foodId,
+    })),
+  };
+
+  if (isOwner && order.plainOtp) {
+    resp.deliveryOtp = order.plainOtp;
+  } else {
+    delete resp.deliveryOtp;
+    delete resp.plainOtp;
+  }
+
+  return resp;
+}
+
 // ── CUSTOMER CONTROLLERS ────────────────────────────────────────────────────
 
 /**
  * Places a new order by converting the user's active cart items.
- * Validates items, snapshots delivery address and partner data, hashes crypto delivery OTP,
- * sets status to PENDING, appends initial timeline entry, and resets the active cart.
  */
 const placeOrder = asyncHandler(async (req, res) => {
   const userId = req.user.id;
@@ -32,9 +102,13 @@ const placeOrder = asyncHandler(async (req, res) => {
   } = req.body;
 
   // 1. Fetch user's active cart
-  const cart = await cartModel
-    .findOne({ user: userId })
-    .populate("partner");
+  const cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: {
+      items: true,
+      partner: true,
+    },
+  });
 
   if (!cart || !cart.items || cart.items.length === 0) {
     throw new ApiError(400, "Cannot place order: Your cart is empty");
@@ -47,9 +121,8 @@ const placeOrder = asyncHandler(async (req, res) => {
   // 2. Resolve Delivery Address
   let resolvedAddress;
   if (addressId) {
-    const savedAddress = await addressModel.findOne({
-      _id: addressId,
-      user: userId,
+    const savedAddress = await prisma.address.findFirst({
+      where: { id: addressId, userId },
     });
     if (!savedAddress) {
       throw new ApiError(404, "Specified delivery address not found");
@@ -62,7 +135,7 @@ const placeOrder = asyncHandler(async (req, res) => {
       city: savedAddress.city,
       state: savedAddress.state,
       pincode: savedAddress.pincode,
-      coordinates: savedAddress.coordinates?.coordinates || [77.5946, 12.9716],
+      coordinates: [savedAddress.longitude, savedAddress.latitude],
       contactPhone: savedAddress.contactPhone || req.user.phone || "",
     };
   } else if (directAddress) {
@@ -87,108 +160,87 @@ const placeOrder = asyncHandler(async (req, res) => {
     name: partner.name,
     restaurantName: partner.restaurantName,
     logo: partner.logo || "",
-    address: partner.location?.address || "",
-    city: partner.location?.city || "",
-    coordinates: partner.location?.coordinates || [77.5946, 12.9716],
+    address: partner.address || "",
+    city: partner.city || "",
+    coordinates: [partner.longitude, partner.latitude],
     phone: partner.phone || "",
   };
 
-  // 4. Snapshot Items
-  const orderItems = cart.items.map((item) => ({
-    food: item.food,
-    name: item.name,
-    thumbnailUrl: item.thumbnailUrl || "",
-    isVeg: item.isVeg,
-    selectedVariant: item.selectedVariant,
-    selectedAddOns: item.selectedAddOns,
-    unitPrice: item.unitPrice,
-    quantity: item.quantity,
-    itemTotal: item.itemTotal,
-  }));
-
-  // 5. Pricing Snapshot (Honor tip/instructions override if provided)
+  // 4. Pricing Snapshot
   const tipAmount =
-    overrideTip !== undefined ? overrideTip : cart.tipAmount || 0;
+    overrideTip !== undefined ? Number(overrideTip) : cart.tipAmount || 0;
   const deliveryInstructions =
     overrideInstructions || cart.deliveryInstructions || [];
+  const pricing = computeCartPricing(cart.items, cart.appliedCoupon, tipAmount);
 
-  const subtotal = cart.pricing.subtotal;
-  const deliveryFee = cart.pricing.deliveryFee;
-  const platformFee = cart.pricing.platformFee;
-  const taxes = cart.pricing.taxes;
-  const discountAmount = cart.pricing.discountAmount || 0;
-  const grandTotal = Math.max(
-    0,
-    Math.round(
-      (subtotal + deliveryFee + platformFee + taxes + tipAmount - discountAmount) *
-        100,
-    ) / 100,
-  );
-
-  const pricing = {
-    subtotal,
-    deliveryFee,
-    platformFee,
-    taxes,
-    discountAmount,
-    tipAmount,
-    grandTotal,
-  };
-
-  // 6. Cryptographic Delivery OTP Generation
+  // 5. Cryptographic Delivery OTP Generation
   const plainOtp = generateDeliveryOtp();
   const hashedOtp = await hashDeliveryOtp(plainOtp);
   const orderNumber = generateOrderNumber();
 
-  // 7. Initial Timeline
-  const initialTimeline = [
-    createTimelineEntry(
-      "PENDING",
-      "Order placed successfully by customer",
-      "customer",
+  // 6. Create Order Document with relations
+  const newOrder = await prisma.order.create({
+    data: {
+      orderNumber,
       userId,
-    ),
-  ];
-
-  // 8. Create Order Document
-  const newOrder = await orderModel.create({
-    orderNumber,
-    user: userId,
-    partner: partner._id,
-    items: orderItems,
-    deliveryAddress: resolvedAddress,
-    restaurantSnapshot,
-    pricing,
-    appliedCoupon: cart.appliedCoupon,
-    deliveryInstructions,
-    status: "PENDING",
-    paymentStatus: paymentMethod === "COD" ? "PENDING" : "PENDING",
-    paymentMethod,
-    deliveryOtp: hashedOtp,
-    plainOtp: plainOtp,
-    timeline: initialTimeline,
-    estimatedPrepTimeMinutes: 25,
-    estimatedDeliveryTime: new Date(Date.now() + 45 * 60 * 1000), // ~45 minutes default ETA
+      partnerId: partner.id,
+      deliveryAddress: resolvedAddress,
+      restaurantSnapshot,
+      pricing,
+      appliedCoupon: cart.appliedCoupon || undefined,
+      deliveryInstructions,
+      status: "PENDING",
+      paymentStatus: "PENDING",
+      paymentMethod: paymentMethod === "RAZORPAY" ? "RAZORPAY" : paymentMethod === "WALLET" ? "WALLET" : "COD",
+      deliveryOtp: hashedOtp,
+      plainOtp: plainOtp,
+      estimatedPrepTimeMinutes: 25,
+      estimatedDeliveryTime: new Date(Date.now() + 45 * 60 * 1000),
+      items: {
+        create: cart.items.map((item) => ({
+          foodId: item.foodId,
+          name: item.name,
+          thumbnailUrl: item.thumbnailUrl || "",
+          isVeg: item.isVeg,
+          selectedVariant: item.selectedVariant || undefined,
+          selectedAddOns: item.selectedAddOns || [],
+          unitPrice: item.unitPrice,
+          quantity: item.quantity,
+          itemTotal: item.itemTotal,
+        })),
+      },
+      timeline: {
+        create: [
+          {
+            status: "PENDING",
+            note: "Order placed successfully by customer",
+            actorRole: "customer",
+            actorId: userId,
+          },
+        ],
+      },
+    },
+    include: {
+      items: true,
+      timeline: true,
+      partner: true,
+    },
   });
 
-  // 9. Reset user's active cart atomically
-  cart.items = [];
-  cart.partner = null;
-  cart.appliedCoupon = undefined;
-  cart.tipAmount = 0;
-  cart.deliveryInstructions = [];
-  cart.pricing = {
-    subtotal: 0,
-    deliveryFee: 0,
-    platformFee: 0,
-    taxes: 0,
-    discountAmount: 0,
-    grandTotal: 0,
-  };
-  await cart.save();
+  // 7. Reset user's active cart atomically
+  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+  await prisma.cart.update({
+    where: { id: cart.id },
+    data: {
+      partnerId: null,
+      appliedCoupon: null,
+      tipAmount: 0,
+      deliveryInstructions: [],
+      pricing: { subtotal: 0, deliveryFee: 0, platformFee: 0, taxes: 0, discountAmount: 0, grandTotal: 0 },
+    },
+  });
 
-  // Return order with plainOtp visible for the placing customer
-  const responseData = newOrder.toObject();
+  const responseData = formatOrderResponse(newOrder, userId, "customer");
   responseData.deliveryOtp = plainOtp;
 
   res.status(201).json(
@@ -205,36 +257,40 @@ const getCustomerOrders = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const filter = { user: userId };
+  const where = { userId };
   if (req.query.status) {
-    filter.status = req.query.status.toUpperCase();
+    where.status = req.query.status.toUpperCase();
   }
 
   const [orders, totalOrders] = await Promise.all([
-    orderModel
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("partner", "restaurantName logo location avgRating")
-      .populate("deliveryPartner", "name phone vehicleType vehicleNumber rating")
-      .select("+plainOtp"),
-    orderModel.countDocuments(filter),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        items: true,
+        timeline: true,
+        partner: {
+          select: { id: true, name: true, restaurantName: true, logo: true, avgRating: true, latitude: true, longitude: true },
+        },
+        deliveryPartner: {
+          select: { id: true, name: true, phone: true, vehicleType: true, vehicleNumber: true, rating: true, latitude: true, longitude: true },
+        },
+      },
+    }),
+    prisma.order.count({ where }),
   ]);
 
-  const ordersWithOtp = orders.map((ord) => {
-    const obj = ord.toObject();
-    if (obj.plainOtp) {
-      obj.deliveryOtp = obj.plainOtp;
-    }
-    return obj;
-  });
+  const formattedOrders = orders.map((ord) =>
+    formatOrderResponse(ord, userId, "customer"),
+  );
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        orders: ordersWithOtp,
+        orders: formattedOrders,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalOrders / limit),
@@ -249,46 +305,40 @@ const getCustomerOrders = asyncHandler(async (req, res) => {
 
 /**
  * Gets detailed order view with timeline.
- * Accessible by Customer (owner), Partner (assigned), Rider (assigned), or Admin.
  */
 const getOrderDetail = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const order = await orderModel
-    .findById(id)
-    .populate("partner", "name restaurantName logo location phone avgRating")
-    .populate(
-      "deliveryPartner",
-      "name phone vehicleType vehicleNumber currentLocation rating totalDeliveries",
-    )
-    .populate("user", "fullName email phone")
-    .select("+plainOtp");
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: {
+      items: true,
+      timeline: true,
+      partner: true,
+      deliveryPartner: true,
+      user: {
+        select: { id: true, fullName: true, email: true, phone: true },
+      },
+    },
+  });
 
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
 
   // Authorization check
-  const isCustomer = req.user.role === "customer" && order.user._id.toString() === req.user.id;
-  const isPartner = req.user.role === "foodpartner" && order.partner._id.toString() === req.user.id;
+  const isCustomer = req.user.role === "customer" && order.userId === req.user.id;
+  const isPartner = req.user.role === "foodpartner" && order.partnerId === req.user.id;
   const isRider =
     req.user.role === "deliverypartner" &&
-    (order.deliveryPartner?._id?.toString() === req.user.id ||
-      (order.status === "READY_FOR_PICKUP" && !order.deliveryPartner));
+    (order.deliveryPartnerId === req.user.id ||
+      (order.status === "READY_FOR_PICKUP" && !order.deliveryPartnerId));
   const isAdmin = req.user.role === "admin";
 
   if (!isCustomer && !isPartner && !isRider && !isAdmin) {
     throw new ApiError(403, "Access forbidden: You are not authorized to view this order");
   }
 
-  const responseData = order.toObject();
-
-  // Reveal plain OTP only to the owning customer
-  if (isCustomer && order.plainOtp) {
-    responseData.deliveryOtp = order.plainOtp;
-  } else {
-    delete responseData.deliveryOtp;
-    delete responseData.plainOtp;
-  }
+  const responseData = formatOrderResponse(order, req.user.id, req.user.role);
 
   res
     .status(200)
@@ -303,60 +353,72 @@ const cancelOrderByCustomer = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { reason = "Cancelled by customer" } = req.body;
 
-  const order = await orderModel.findOne({ _id: id, user: userId });
+  const order = await prisma.order.findFirst({
+    where: { id, userId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found or does not belong to you");
   }
 
-  // Validate state machine transition
   validateTransition(order.status, "CANCELLED", "customer");
 
-  order.status = "CANCELLED";
-  order.cancellation = {
+  const cancellation = {
     reason,
     cancelledBy: "customer",
     cancelledAt: new Date(),
     refundStatus: order.paymentStatus === "PAID" ? "PENDING" : "NOT_APPLICABLE",
-    refundAmount: order.pricing.grandTotal,
+    refundAmount: order.pricing?.grandTotal || 0,
   };
 
-  order.timeline.push(
-    createTimelineEntry(
-      "CANCELLED",
-      `Order cancelled by customer: ${reason}`,
-      "customer",
-      userId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "CANCELLED",
+      cancellation,
+      timeline: {
+        create: [
+          {
+            status: "CANCELLED",
+            note: `Order cancelled by customer: ${reason}`,
+            actorRole: "customer",
+            actorId: userId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order cancelled successfully"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, userId, "customer"), "Order cancelled successfully"));
 });
 
 /**
- * Returns tracking metadata (driver coordinates, restaurant coordinates, delivery address, timeline).
+ * Returns tracking metadata.
  */
 const trackOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const order = await orderModel
-    .findById(id)
-    .populate("deliveryPartner", "name phone vehicleType vehicleNumber currentLocation rating")
-    .populate("partner", "restaurantName logo location phone");
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: {
+      partner: true,
+      deliveryPartner: true,
+      timeline: true,
+    },
+  });
 
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
 
   const trackingInfo = {
-    orderId: order._id,
+    orderId: order.id,
     orderNumber: order.orderNumber,
     status: order.status,
     restaurant: {
       name: order.restaurantSnapshot?.restaurantName || order.partner?.restaurantName,
-      coordinates: order.restaurantSnapshot?.coordinates || order.partner?.location?.coordinates,
+      coordinates: order.restaurantSnapshot?.coordinates || [order.partner?.longitude, order.partner?.latitude],
       phone: order.restaurantSnapshot?.phone || order.partner?.phone,
     },
     deliveryAddress: order.deliveryAddress,
@@ -366,7 +428,7 @@ const trackOrder = asyncHandler(async (req, res) => {
           phone: order.deliveryPartner.phone,
           vehicleType: order.deliveryPartner.vehicleType,
           vehicleNumber: order.deliveryPartner.vehicleNumber,
-          currentLocation: order.deliveryPartner.currentLocation?.coordinates || null,
+          currentLocation: [order.deliveryPartner.longitude, order.deliveryPartner.latitude],
         }
       : null,
     estimatedDeliveryTime: order.estimatedDeliveryTime,
@@ -381,7 +443,7 @@ const trackOrder = asyncHandler(async (req, res) => {
 // ── FOOD PARTNER CONTROLLERS ────────────────────────────────────────────────
 
 /**
- * Gets incoming/active orders for the authenticated food partner restaurant.
+ * Gets incoming/active orders for the authenticated food partner.
  */
 const getPartnerOrders = asyncHandler(async (req, res) => {
   const partnerId = req.user.id;
@@ -389,27 +451,34 @@ const getPartnerOrders = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 20;
   const skip = (page - 1) * limit;
 
-  const filter = { partner: partnerId };
+  const where = { partnerId };
   if (req.query.status) {
-    filter.status = req.query.status.toUpperCase();
+    where.status = req.query.status.toUpperCase();
   }
 
   const [orders, totalOrders] = await Promise.all([
-    orderModel
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("user", "fullName phone email")
-      .populate("deliveryPartner", "name phone vehicleType vehicleNumber"),
-    orderModel.countDocuments(filter),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        items: true,
+        timeline: true,
+        user: { select: { id: true, fullName: true, phone: true, email: true } },
+        deliveryPartner: { select: { id: true, name: true, phone: true, vehicleType: true, vehicleNumber: true } },
+      },
+    }),
+    prisma.order.count({ where }),
   ]);
+
+  const formattedOrders = orders.map((ord) => formatOrderResponse(ord, partnerId, "foodpartner"));
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        orders,
+        orders: formattedOrders,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalOrders / limit),
@@ -423,40 +492,45 @@ const getPartnerOrders = asyncHandler(async (req, res) => {
 });
 
 /**
- * Food Partner confirms the order and optionally sets preparation time.
+ * Food Partner confirms the order.
  */
 const confirmOrderByPartner = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const partnerId = req.user.id;
   const { prepTimeMinutes = 25 } = req.body;
 
-  const order = await orderModel.findOne({ _id: id, partner: partnerId });
+  const order = await prisma.order.findFirst({
+    where: { id, partnerId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found for this restaurant");
   }
 
   validateTransition(order.status, "CONFIRMED", "foodpartner");
 
-  order.status = "CONFIRMED";
-  order.estimatedPrepTimeMinutes = prepTimeMinutes;
-  order.estimatedDeliveryTime = new Date(
-    Date.now() + (prepTimeMinutes + 20) * 60 * 1000,
-  );
-
-  order.timeline.push(
-    createTimelineEntry(
-      "CONFIRMED",
-      `Order confirmed by kitchen. Prep time: ${prepTimeMinutes} mins.`,
-      "foodpartner",
-      partnerId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "CONFIRMED",
+      estimatedPrepTimeMinutes: prepTimeMinutes,
+      estimatedDeliveryTime: new Date(Date.now() + (prepTimeMinutes + 20) * 60 * 1000),
+      timeline: {
+        create: [
+          {
+            status: "CONFIRMED",
+            note: `Order confirmed by kitchen. Prep time: ${prepTimeMinutes} mins.`,
+            actorRole: "foodpartner",
+            actorId: partnerId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order confirmed by restaurant"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order confirmed by restaurant"));
 });
 
 /**
@@ -466,28 +540,36 @@ const preparingOrderByPartner = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const partnerId = req.user.id;
 
-  const order = await orderModel.findOne({ _id: id, partner: partnerId });
+  const order = await prisma.order.findFirst({
+    where: { id, partnerId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found for this restaurant");
   }
 
   validateTransition(order.status, "PREPARING", "foodpartner");
 
-  order.status = "PREPARING";
-  order.timeline.push(
-    createTimelineEntry(
-      "PREPARING",
-      "Kitchen is now preparing the food",
-      "foodpartner",
-      partnerId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "PREPARING",
+      timeline: {
+        create: [
+          {
+            status: "PREPARING",
+            note: "Kitchen is now preparing the food",
+            actorRole: "foodpartner",
+            actorId: partnerId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order marked as preparing"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order marked as preparing"));
 });
 
 /**
@@ -497,101 +579,125 @@ const readyOrderByPartner = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const partnerId = req.user.id;
 
-  const order = await orderModel.findOne({ _id: id, partner: partnerId });
+  const order = await prisma.order.findFirst({
+    where: { id, partnerId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found for this restaurant");
   }
 
   validateTransition(order.status, "READY_FOR_PICKUP", "foodpartner");
 
-  order.status = "READY_FOR_PICKUP";
-  order.timeline.push(
-    createTimelineEntry(
-      "READY_FOR_PICKUP",
-      "Food is prepared, packed, and waiting for rider pickup",
-      "foodpartner",
-      partnerId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "READY_FOR_PICKUP",
+      timeline: {
+        create: [
+          {
+            status: "READY_FOR_PICKUP",
+            note: "Food is prepared, packed, and waiting for rider pickup",
+            actorRole: "foodpartner",
+            actorId: partnerId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order marked ready for pickup"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order marked ready for pickup"));
 });
 
 /**
- * Food Partner cancels the order with a mandatory reason.
+ * Food Partner cancels the order.
  */
 const cancelOrderByPartner = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const partnerId = req.user.id;
   const { reason } = req.body;
 
-  const order = await orderModel.findOne({ _id: id, partner: partnerId });
+  const order = await prisma.order.findFirst({
+    where: { id, partnerId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found for this restaurant");
   }
 
   validateTransition(order.status, "CANCELLED", "foodpartner");
 
-  order.status = "CANCELLED";
-  order.cancellation = {
+  const cancellation = {
     reason,
     cancelledBy: "foodpartner",
     cancelledAt: new Date(),
     refundStatus: order.paymentStatus === "PAID" ? "PENDING" : "NOT_APPLICABLE",
-    refundAmount: order.pricing.grandTotal,
+    refundAmount: order.pricing?.grandTotal || 0,
   };
 
-  order.timeline.push(
-    createTimelineEntry(
-      "CANCELLED",
-      `Order cancelled by restaurant: ${reason}`,
-      "foodpartner",
-      partnerId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "CANCELLED",
+      cancellation,
+      timeline: {
+        create: [
+          {
+            status: "CANCELLED",
+            note: `Order cancelled by restaurant: ${reason}`,
+            actorRole: "foodpartner",
+            actorId: partnerId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order cancelled by restaurant"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order cancelled by restaurant"));
 });
 
 // ── DELIVERY PARTNER (RIDER) CONTROLLERS ────────────────────────────────────
 
 /**
- * Lists all available orders ready for delivery pickup without an assigned rider.
+ * Lists available orders ready for delivery pickup.
  */
 const getAvailableOrdersForRider = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page, 10) || 1;
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const filter = {
+  const where = {
     status: "READY_FOR_PICKUP",
-    deliveryPartner: null,
+    deliveryPartnerId: null,
   };
 
   const [orders, totalOrders] = await Promise.all([
-    orderModel
-      .find(filter)
-      .sort({ createdAt: 1 }) // First in, first out
-      .skip(skip)
-      .limit(limit)
-      .populate("partner", "restaurantName logo location phone")
-      .populate("user", "fullName phone"),
-    orderModel.countDocuments(filter),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "asc" },
+      skip,
+      take: limit,
+      include: {
+        items: true,
+        timeline: true,
+        partner: true,
+        user: { select: { id: true, fullName: true, phone: true } },
+      },
+    }),
+    prisma.order.count({ where }),
   ]);
+
+  const formatted = orders.map((ord) => formatOrderResponse(ord, req.user.id, "deliverypartner"));
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        orders,
+        orders: formatted,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalOrders / limit),
@@ -605,16 +711,18 @@ const getAvailableOrdersForRider = asyncHandler(async (req, res) => {
 });
 
 /**
- * Rider claims/accepts the delivery assignment for a ready order.
+ * Rider claims/accepts the delivery assignment.
  */
 const acceptDeliveryByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const riderId = req.user.id;
 
   // 1. Verify rider doesn't already have an active uncompleted order
-  const activeOrder = await orderModel.findOne({
-    deliveryPartner: riderId,
-    status: { $in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
+  const activeOrder = await prisma.order.findFirst({
+    where: {
+      deliveryPartnerId: riderId,
+      status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
+    },
   });
 
   if (activeOrder) {
@@ -625,7 +733,7 @@ const acceptDeliveryByRider = asyncHandler(async (req, res) => {
   }
 
   // 2. Fetch target order
-  const order = await orderModel.findById(id);
+  const order = await prisma.order.findUnique({ where: { id } });
   if (!order) {
     throw new ApiError(404, "Order not found");
   }
@@ -637,30 +745,37 @@ const acceptDeliveryByRider = asyncHandler(async (req, res) => {
     );
   }
 
-  if (order.deliveryPartner && order.deliveryPartner.toString() !== riderId) {
+  if (order.deliveryPartnerId && order.deliveryPartnerId !== riderId) {
     throw new ApiError(409, "Order has already been assigned to another delivery partner");
   }
 
-  order.deliveryPartner = riderId;
-  order.timeline.push(
-    createTimelineEntry(
-      order.status,
-      "Delivery partner accepted the order dispatch",
-      "deliverypartner",
-      riderId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      deliveryPartnerId: riderId,
+      timeline: {
+        create: [
+          {
+            status: order.status,
+            note: "Delivery partner accepted the order dispatch",
+            actorRole: "deliverypartner",
+            actorId: riderId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true, partner: true },
+  });
 
   // Update rider's current order pointer
-  await deliveryPartnerModel.findByIdAndUpdate(riderId, {
-    currentOrder: order._id,
+  await prisma.deliveryPartner.update({
+    where: { id: riderId },
+    data: { currentOrderId: order.id },
   });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Delivery dispatch accepted successfully"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Delivery dispatch accepted successfully"));
 });
 
 /**
@@ -670,28 +785,36 @@ const pickupOrderByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const riderId = req.user.id;
 
-  const order = await orderModel.findOne({ _id: id, deliveryPartner: riderId });
+  const order = await prisma.order.findFirst({
+    where: { id, deliveryPartnerId: riderId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
   }
 
   validateTransition(order.status, "PICKED_UP", "deliverypartner");
 
-  order.status = "PICKED_UP";
-  order.timeline.push(
-    createTimelineEntry(
-      "PICKED_UP",
-      "Food picked up from restaurant by delivery partner",
-      "deliverypartner",
-      riderId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "PICKED_UP",
+      timeline: {
+        create: [
+          {
+            status: "PICKED_UP",
+            note: "Food picked up from restaurant by delivery partner",
+            actorRole: "deliverypartner",
+            actorId: riderId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order marked as picked up"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order marked as picked up"));
 });
 
 /**
@@ -701,34 +824,40 @@ const outForDeliveryByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const riderId = req.user.id;
 
-  const order = await orderModel.findOne({ _id: id, deliveryPartner: riderId });
+  const order = await prisma.order.findFirst({
+    where: { id, deliveryPartnerId: riderId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
   }
 
   validateTransition(order.status, "OUT_FOR_DELIVERY", "deliverypartner");
 
-  order.status = "OUT_FOR_DELIVERY";
-  order.timeline.push(
-    createTimelineEntry(
-      "OUT_FOR_DELIVERY",
-      "Delivery partner is en route to customer location",
-      "deliverypartner",
-      riderId,
-    ),
-  );
-
-  await order.save();
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "OUT_FOR_DELIVERY",
+      timeline: {
+        create: [
+          {
+            status: "OUT_FOR_DELIVERY",
+            note: "Delivery partner is en route to customer location",
+            actorRole: "deliverypartner",
+            actorId: riderId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order marked out for delivery"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order marked out for delivery"));
 });
 
 /**
  * Rider confirms delivery by entering the 4-digit OTP provided by customer.
- * Cryptographically verifies OTP hash. Upon match, marks DELIVERED, closes rider assignment,
- * and increments total deliveries.
  */
 const deliverOrderByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -739,9 +868,9 @@ const deliverOrderByRider = asyncHandler(async (req, res) => {
     throw new ApiError(400, "4-digit delivery OTP is required");
   }
 
-  const order = await orderModel
-    .findOne({ _id: id, deliveryPartner: riderId })
-    .select("+deliveryOtp");
+  const order = await prisma.order.findFirst({
+    where: { id, deliveryPartnerId: riderId },
+  });
 
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
@@ -750,7 +879,7 @@ const deliverOrderByRider = asyncHandler(async (req, res) => {
   validateTransition(order.status, "DELIVERED", "deliverypartner");
 
   // Verify OTP match
-  const isMatch = await order.verifyDeliveryOtp(otp);
+  const isMatch = await bcrypt.compare(String(otp), order.deliveryOtp || "");
   if (!isMatch) {
     throw new ApiError(
       400,
@@ -758,75 +887,90 @@ const deliverOrderByRider = asyncHandler(async (req, res) => {
     );
   }
 
-  order.status = "DELIVERED";
-  order.actualDeliveryTime = new Date();
-  if (order.paymentMethod === "COD") {
-    order.paymentStatus = "PAID";
-  }
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "DELIVERED",
+      actualDeliveryTime: new Date(),
+      paymentStatus: order.paymentMethod === "COD" ? "PAID" : order.paymentStatus,
+      timeline: {
+        create: [
+          {
+            status: "DELIVERED",
+            note: "Order successfully handed over and verified with delivery OTP",
+            actorRole: "deliverypartner",
+            actorId: riderId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
-  order.timeline.push(
-    createTimelineEntry(
-      "DELIVERED",
-      "Order successfully handed over and verified with delivery OTP",
-      "deliverypartner",
-      riderId,
-    ),
-  );
-
-  await order.save();
-
-  // Clear rider currentOrder and increment delivery count
-  await deliveryPartnerModel.findByIdAndUpdate(riderId, {
-    currentOrder: null,
-    $inc: { totalDeliveries: 1 },
+  // Clear rider currentOrderId and increment delivery count
+  await prisma.deliveryPartner.update({
+    where: { id: riderId },
+    data: {
+      currentOrderId: null,
+      totalDeliveries: { increment: 1 },
+    },
   });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Order delivered successfully! 🎉"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order delivered successfully! 🎉"));
 });
 
 /**
- * Rider marks delivery failed with a mandatory reason.
+ * Rider marks delivery failed.
  */
 const failDeliveryByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const riderId = req.user.id;
   const { reason } = req.body;
 
-  const order = await orderModel.findOne({ _id: id, deliveryPartner: riderId });
+  const order = await prisma.order.findFirst({
+    where: { id, deliveryPartnerId: riderId },
+  });
   if (!order) {
     throw new ApiError(404, "Order not found or not assigned to you");
   }
 
   validateTransition(order.status, "FAILED", "deliverypartner");
 
-  order.status = "FAILED";
-  order.cancellation = {
+  const cancellation = {
     reason,
     cancelledBy: "deliverypartner",
     cancelledAt: new Date(),
   };
 
-  order.timeline.push(
-    createTimelineEntry(
-      "FAILED",
-      `Delivery failed: ${reason}`,
-      "deliverypartner",
-      riderId,
-    ),
-  );
+  const updatedOrder = await prisma.order.update({
+    where: { id },
+    data: {
+      status: "FAILED",
+      cancellation,
+      timeline: {
+        create: [
+          {
+            status: "FAILED",
+            note: `Delivery failed: ${reason}`,
+            actorRole: "deliverypartner",
+            actorId: riderId,
+          },
+        ],
+      },
+    },
+    include: { items: true, timeline: true },
+  });
 
-  await order.save();
-
-  // Clear rider's active assignment
-  await deliveryPartnerModel.findByIdAndUpdate(riderId, {
-    currentOrder: null,
+  await prisma.deliveryPartner.update({
+    where: { id: riderId },
+    data: { currentOrderId: null },
   });
 
   res
     .status(200)
-    .json(new ApiResponse(200, order, "Delivery marked as failed"));
+    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Delivery marked as failed"));
 });
 
 // ── ADMIN CONTROLLERS ───────────────────────────────────────────────────────
@@ -839,34 +983,41 @@ const getAllOrdersAdmin = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 20;
   const skip = (page - 1) * limit;
 
-  const filter = {};
+  const where = {};
   if (req.query.status) {
-    filter.status = req.query.status.toUpperCase();
+    where.status = req.query.status.toUpperCase();
   }
   if (req.query.partnerId) {
-    filter.partner = req.query.partnerId;
+    where.partnerId = req.query.partnerId;
   }
   if (req.query.userId) {
-    filter.user = req.query.userId;
+    where.userId = req.query.userId;
   }
 
   const [orders, totalOrders] = await Promise.all([
-    orderModel
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("user", "fullName email phone")
-      .populate("partner", "restaurantName")
-      .populate("deliveryPartner", "name phone"),
-    orderModel.countDocuments(filter),
+    prisma.order.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+      include: {
+        items: true,
+        timeline: true,
+        user: { select: { id: true, fullName: true, email: true, phone: true } },
+        partner: { select: { id: true, name: true, restaurantName: true } },
+        deliveryPartner: { select: { id: true, name: true, phone: true } },
+      },
+    }),
+    prisma.order.count({ where }),
   ]);
+
+  const formatted = orders.map((ord) => formatOrderResponse(ord, req.user.id, "admin"));
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        orders,
+        orders: formatted,
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalOrders / limit),

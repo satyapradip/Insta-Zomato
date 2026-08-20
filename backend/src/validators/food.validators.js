@@ -51,7 +51,7 @@ const createFoodItem = [
 
 // ── Update food item ─────────────────────────────────────────────────────────
 const updateFoodItem = [
-  param("id").isMongoId().withMessage("Invalid food item ID"),
+  param("id").isString().notEmpty().withMessage("Invalid food item ID"),
   body("name")
     .optional()
     .trim()
@@ -69,7 +69,7 @@ const updateFoodItem = [
 
 // ── Add Comment ──────────────────────────────────────────────────────────────
 const addComment = [
-  param("id").isMongoId().withMessage("Invalid food item ID"),
+  param("id").isString().notEmpty().withMessage("Invalid food item ID"),
   body("text")
     .trim()
     .notEmpty()
@@ -78,7 +78,8 @@ const addComment = [
     .withMessage("Comment must be 1–500 characters"),
   body("parentComment")
     .optional()
-    .isMongoId()
+    .isString()
+    .notEmpty()
     .withMessage("Invalid parent comment ID"),
 ];
 

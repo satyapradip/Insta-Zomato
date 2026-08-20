@@ -2,7 +2,7 @@ const { body, param } = require("express-validator");
 
 // ── Add Item to Cart Validator ───────────────────────────────────────────────
 const addToCart = [
-  body("foodId").isMongoId().withMessage("Invalid food item ID"),
+  body("foodId").isString().notEmpty().withMessage("Invalid food item ID"),
   body("quantity")
     .optional()
     .isInt({ min: 1, max: 20 })
@@ -23,7 +23,7 @@ const addToCart = [
 
 // ── Update Item Quantity Validator ───────────────────────────────────────────
 const updateItemQuantity = [
-  param("itemId").isMongoId().withMessage("Invalid cart item ID"),
+  param("itemId").isString().notEmpty().withMessage("Invalid cart item ID"),
   body("quantity")
     .isInt({ min: 0, max: 20 })
     .withMessage("Quantity must be between 0 and 20 (0 to remove)"),

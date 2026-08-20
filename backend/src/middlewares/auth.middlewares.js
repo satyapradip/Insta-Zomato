@@ -1,12 +1,10 @@
-const userModel = require("../models/user.models");
-const foodPartnerModel = require("../models/foodpartner.models");
-const deliveryPartnerModel = require("../models/deliverypartner.models");
+const { prisma } = require("../db/prisma");
 const jwt = require("jsonwebtoken");
 const config = require("../config/index");
 const ApiError = require("../utils/ApiError");
 
 /**
- * Universal Authentication Middleware
+ * Universal Authentication Middleware (PostgreSQL / Prisma)
  * Extracts JWT from HTTP-only cookie or Authorization Bearer header.
  */
 async function requireAuth(req, res, next) {
@@ -25,17 +23,23 @@ async function requireAuth(req, res, next) {
 
     // Hydrate corresponding entity based on role
     if (decoded.role === "foodpartner") {
-      const partner = await foodPartnerModel.findById(decoded.id);
+      const partner = await prisma.foodPartner.findUnique({
+        where: { id: decoded.id },
+      });
       if (!partner) return next(new ApiError(401, "Food Partner not found or session invalid"));
       req.foodPartner = partner;
       req.partner = partner;
     } else if (decoded.role === "deliverypartner") {
-      const rider = await deliveryPartnerModel.findById(decoded.id);
+      const rider = await prisma.deliveryPartner.findUnique({
+        where: { id: decoded.id },
+      });
       if (!rider) return next(new ApiError(401, "Delivery Partner not found or session invalid"));
       req.deliveryPartner = rider;
       req.rider = rider;
     } else {
-      const customer = await userModel.findById(decoded.id);
+      const customer = await prisma.user.findUnique({
+        where: { id: decoded.id },
+      });
       if (!customer) return next(new ApiError(401, "User not found or session invalid"));
       if (customer.isBanned) return next(new ApiError(403, "User account is suspended"));
       req.customer = customer;

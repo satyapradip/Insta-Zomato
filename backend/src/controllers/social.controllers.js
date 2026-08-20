@@ -1,7 +1,4 @@
-const likeModel = require("../models/like.models");
-const saveModel = require("../models/save.models");
-const commentModel = require("../models/comment.models");
-const foodModel = require("../models/food.models");
+const { prisma } = require("../db/prisma");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
@@ -11,19 +8,29 @@ const toggleLike = asyncHandler(async (req, res) => {
   const foodId = req.params.id;
   const userId = req.user.id;
 
-  const foodItem = await foodModel.findById(foodId);
+  const foodItem = await prisma.food.findUnique({
+    where: { id: foodId },
+  });
   if (!foodItem) throw new ApiError(404, "Food item not found");
 
-  const existingLike = await likeModel.findOne({ user: userId, food: foodId });
+  const existingLike = await prisma.like.findUnique({
+    where: {
+      userId_foodId: {
+        userId,
+        foodId,
+      },
+    },
+  });
 
   if (existingLike) {
     // Unlike
-    await likeModel.findByIdAndDelete(existingLike._id);
-    const updatedFood = await foodModel.findByIdAndUpdate(
-      foodId,
-      { $inc: { likeCount: -1 } },
-      { new: true },
-    );
+    await prisma.like.delete({
+      where: { id: existingLike.id },
+    });
+    const updatedFood = await prisma.food.update({
+      where: { id: foodId },
+      data: { likeCount: { decrement: 1 } },
+    });
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -33,12 +40,13 @@ const toggleLike = asyncHandler(async (req, res) => {
     );
   } else {
     // Like
-    await likeModel.create({ user: userId, food: foodId });
-    const updatedFood = await foodModel.findByIdAndUpdate(
-      foodId,
-      { $inc: { likeCount: 1 } },
-      { new: true },
-    );
+    await prisma.like.create({
+      data: { userId, foodId },
+    });
+    const updatedFood = await prisma.food.update({
+      where: { id: foodId },
+      data: { likeCount: { increment: 1 } },
+    });
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -55,19 +63,29 @@ const toggleSave = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { collectionName } = req.body;
 
-  const foodItem = await foodModel.findById(foodId);
+  const foodItem = await prisma.food.findUnique({
+    where: { id: foodId },
+  });
   if (!foodItem) throw new ApiError(404, "Food item not found");
 
-  const existingSave = await saveModel.findOne({ user: userId, food: foodId });
+  const existingSave = await prisma.save.findUnique({
+    where: {
+      userId_foodId: {
+        userId,
+        foodId,
+      },
+    },
+  });
 
   if (existingSave) {
     // Remove from Wishlist
-    await saveModel.findByIdAndDelete(existingSave._id);
-    const updatedFood = await foodModel.findByIdAndUpdate(
-      foodId,
-      { $inc: { saveCount: -1 } },
-      { new: true },
-    );
+    await prisma.save.delete({
+      where: { id: existingSave.id },
+    });
+    const updatedFood = await prisma.food.update({
+      where: { id: foodId },
+      data: { saveCount: { decrement: 1 } },
+    });
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -77,16 +95,17 @@ const toggleSave = asyncHandler(async (req, res) => {
     );
   } else {
     // Save
-    await saveModel.create({
-      user: userId,
-      food: foodId,
-      collectionName: collectionName || "Wishlist",
+    await prisma.save.create({
+      data: {
+        userId,
+        foodId,
+        collection: collectionName || "Wishlist",
+      },
     });
-    const updatedFood = await foodModel.findByIdAndUpdate(
-      foodId,
-      { $inc: { saveCount: 1 } },
-      { new: true },
-    );
+    const updatedFood = await prisma.food.update({
+      where: { id: foodId },
+      data: { saveCount: { increment: 1 } },
+    });
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -103,25 +122,43 @@ const addComment = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { text, parentComment } = req.body;
 
-  const foodItem = await foodModel.findById(foodId);
+  const foodItem = await prisma.food.findUnique({
+    where: { id: foodId },
+  });
   if (!foodItem) throw new ApiError(404, "Food item not found");
 
-  const comment = await commentModel.create({
-    user: userId,
-    food: foodId,
-    text,
-    parentComment: parentComment || null,
+  const comment = await prisma.comment.create({
+    data: {
+      userId,
+      foodId,
+      text,
+      parentId: parentComment || null,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          avatarUrl: true,
+        },
+      },
+    },
   });
 
-  await foodModel.findByIdAndUpdate(foodId, { $inc: { commentCount: 1 } });
+  await prisma.food.update({
+    where: { id: foodId },
+    data: { commentCount: { increment: 1 } },
+  });
 
-  const populatedComment = await commentModel
-    .findById(comment._id)
-    .populate("user", "fullName avatarUrl");
+  const responseObj = {
+    ...comment,
+    _id: comment.id,
+    user: { ...comment.user, _id: comment.user.id },
+  };
 
   res
     .status(201)
-    .json(new ApiResponse(201, populatedComment, "Comment posted successfully"));
+    .json(new ApiResponse(201, responseObj, "Comment posted successfully"));
 });
 
 // ── Get Comments for Food Reel ───────────────────────────────────────────────
@@ -131,24 +168,38 @@ const getComments = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
-  const comments = await commentModel
-    .find({ food: foodId, parentComment: null, isDeleted: false })
-    .populate("user", "fullName avatarUrl")
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit);
+  const [comments, total] = await Promise.all([
+    prisma.comment.findMany({
+      where: { foodId, parentId: null, isDeleted: false },
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.comment.count({
+      where: { foodId, parentId: null, isDeleted: false },
+    }),
+  ]);
 
-  const total = await commentModel.countDocuments({
-    food: foodId,
-    parentComment: null,
-    isDeleted: false,
-  });
+  const formattedComments = comments.map((c) => ({
+    ...c,
+    _id: c.id,
+    user: { ...c.user, _id: c.user.id },
+  }));
 
   res.status(200).json(
     new ApiResponse(
       200,
       {
-        comments,
+        comments: formattedComments,
         pagination: {
           page,
           limit,
@@ -164,40 +215,60 @@ const getComments = asyncHandler(async (req, res) => {
 // ── Get User's Liked Reels ───────────────────────────────────────────────────
 const getUserLikes = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const likes = await likeModel
-    .find({ user: userId })
-    .populate({
-      path: "food",
-      populate: { path: "foodPartner", select: "name restaurantName logo" },
-    })
-    .sort({ createdAt: -1 });
+  const likes = await prisma.like.findMany({
+    where: { userId },
+    include: {
+      food: {
+        include: {
+          foodPartner: {
+            select: { id: true, name: true, restaurantName: true, logo: true },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const foods = likes.map((l) => ({
+    ...l.food,
+    _id: l.food.id,
+    foodPartner: l.food.foodPartner
+      ? { ...l.food.foodPartner, _id: l.food.foodPartner.id }
+      : null,
+  }));
 
   res.status(200).json(
-    new ApiResponse(
-      200,
-      likes.map((l) => l.food).filter(Boolean),
-      "Liked reels fetched successfully",
-    ),
+    new ApiResponse(200, foods, "Liked reels fetched successfully"),
   );
 });
 
 // ── Get User's Saved Reels ───────────────────────────────────────────────────
 const getUserSaved = asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const saves = await saveModel
-    .find({ user: userId })
-    .populate({
-      path: "food",
-      populate: { path: "foodPartner", select: "name restaurantName logo" },
-    })
-    .sort({ createdAt: -1 });
+  const saves = await prisma.save.findMany({
+    where: { userId },
+    include: {
+      food: {
+        include: {
+          foodPartner: {
+            select: { id: true, name: true, restaurantName: true, logo: true },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const foods = saves.map((s) => ({
+    ...s.food,
+    _id: s.food.id,
+    foodPartner: s.food.foodPartner
+      ? { ...s.food.foodPartner, _id: s.food.foodPartner.id }
+      : null,
+  }));
 
   res.status(200).json(
-    new ApiResponse(
-      200,
-      saves.map((s) => s.food).filter(Boolean),
-      "Saved reels fetched successfully",
-    ),
+    new ApiResponse(200, foods, "Saved reels fetched successfully"),
   );
 });
 

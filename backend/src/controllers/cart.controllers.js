@@ -1,7 +1,4 @@
-const cartModel = require("../models/cart.models");
-const foodModel = require("../models/food.models");
-const couponModel = require("../models/coupon.models");
-const foodPartnerModel = require("../models/foodpartner.models");
+const { prisma } = require("../db/prisma");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
@@ -11,11 +8,9 @@ const ApiResponse = require("../utils/ApiResponse");
 /**
  * Recalculates subtotal, taxes (5% GST), platform fee, tip, discount, and grand total.
  */
-function recalculateCartTotals(cart) {
-  if (!cart.items || cart.items.length === 0) {
-    cart.partner = null;
-    cart.appliedCoupon = undefined;
-    cart.pricing = {
+function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
+  if (!items || items.length === 0) {
+    return {
       subtotal: 0,
       deliveryFee: 0,
       platformFee: 0,
@@ -23,37 +18,28 @@ function recalculateCartTotals(cart) {
       discountAmount: 0,
       grandTotal: 0,
     };
-    return;
   }
 
-  // 1. Subtotal
   let subtotal = 0;
-  cart.items.forEach((item) => {
-    item.itemTotal = item.unitPrice * item.quantity;
-    subtotal += item.itemTotal;
+  items.forEach((item) => {
+    subtotal += item.unitPrice * item.quantity;
   });
 
-  // 2. Fixed Fees
   const deliveryFee = 30; // ₹30 base delivery
   const platformFee = 5;  // ₹5 platform service fee
   const taxes = Math.round(subtotal * 0.05 * 100) / 100; // 5% GST
 
-  // 3. Discount calculation
   let discountAmount = 0;
-  if (cart.appliedCoupon && cart.appliedCoupon.discountAmount) {
-    discountAmount = Math.min(cart.appliedCoupon.discountAmount, subtotal);
+  if (appliedCoupon && appliedCoupon.discountAmount) {
+    discountAmount = Math.min(Number(appliedCoupon.discountAmount), subtotal);
   }
 
-  // 4. Tip
-  const tipAmount = cart.tipAmount || 0;
-
-  // 5. Grand Total
   const grandTotal = Math.max(
     0,
-    subtotal + deliveryFee + platformFee + taxes + tipAmount - discountAmount,
+    subtotal + deliveryFee + platformFee + taxes + Number(tipAmount || 0) - discountAmount,
   );
 
-  cart.pricing = {
+  return {
     subtotal: Math.round(subtotal * 100) / 100,
     deliveryFee,
     platformFee,
@@ -63,29 +49,70 @@ function recalculateCartTotals(cart) {
   };
 }
 
+function formatCartResponse(cart) {
+  if (!cart) return null;
+  const pricing = computeCartPricing(cart.items, cart.appliedCoupon, cart.tipAmount);
+  return {
+    ...cart,
+    _id: cart.id,
+    pricing,
+    items: (cart.items || []).map((item) => ({
+      ...item,
+      _id: item.id,
+      food: item.foodId,
+    })),
+    partner: cart.partner
+      ? {
+          ...cart.partner,
+          _id: cart.partner.id,
+          location: {
+            type: "Point",
+            coordinates: [cart.partner.longitude, cart.partner.latitude],
+          },
+        }
+      : null,
+  };
+}
+
 // ── Get Active Cart ──────────────────────────────────────────────────────────
 const getCart = asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
-  let cart = await cartModel
-    .findOne({ user: userId })
-    .populate("partner", "name restaurantName logo location avgRating isOpen");
+  let cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   if (!cart) {
-    cart = await cartModel.create({
-      user: userId,
-      items: [],
-      pricing: { subtotal: 0, deliveryFee: 0, platformFee: 0, taxes: 0, discountAmount: 0, grandTotal: 0 },
+    cart = await prisma.cart.create({
+      data: {
+        userId,
+        pricing: { subtotal: 0, deliveryFee: 0, platformFee: 0, taxes: 0, discountAmount: 0, grandTotal: 0 },
+      },
+      include: {
+        items: true,
+        partner: true,
+      },
     });
-  } else {
-    // Fresh recalculation to ensure consistency
-    recalculateCartTotals(cart);
-    await cart.save();
   }
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Cart fetched successfully"));
+    .json(new ApiResponse(200, formatCartResponse(cart), "Cart fetched successfully"));
 });
 
 // ── Add Item to Cart (with Single-Restaurant Lock) ───────────────────────────
@@ -99,36 +126,50 @@ const addToCart = asyncHandler(async (req, res) => {
     forceClear = false,
   } = req.body;
 
-  const food = await foodModel.findById(foodId).populate("foodPartner");
+  const food = await prisma.food.findUnique({
+    where: { id: foodId },
+    include: { foodPartner: true },
+  });
   if (!food) throw new ApiError(404, "Food dish not found");
   if (!food.isAvailable) throw new ApiError(400, "This dish is currently out of stock");
 
-  let cart = await cartModel.findOne({ user: userId });
+  let cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: { items: true },
+  });
+
   if (!cart) {
-    cart = new cartModel({ user: userId, items: [] });
+    cart = await prisma.cart.create({
+      data: { userId },
+      include: { items: true },
+    });
   }
 
-  const incomingPartnerId = food.foodPartner._id.toString();
+  const incomingPartnerId = food.foodPartnerId;
 
   // ── Single-Restaurant Constraint Check ──
   if (
-    cart.partner &&
+    cart.partnerId &&
     cart.items.length > 0 &&
-    cart.partner.toString() !== incomingPartnerId
+    cart.partnerId !== incomingPartnerId
   ) {
     if (!forceClear) {
-      const currentPartner = await foodPartnerModel.findById(cart.partner);
+      const currentPartner = await prisma.foodPartner.findUnique({
+        where: { id: cart.partnerId },
+      });
       return res.status(409).json(
         new ApiResponse(
           409,
           {
             requiresClearConfirmation: true,
             currentPartner: {
-              id: currentPartner?._id,
+              id: currentPartner?.id,
+              _id: currentPartner?.id,
               name: currentPartner?.restaurantName || currentPartner?.name,
             },
             newPartner: {
-              id: food.foodPartner._id,
+              id: food.foodPartner.id,
+              _id: food.foodPartner.id,
               name: food.foodPartner.restaurantName || food.foodPartner.name,
             },
           },
@@ -137,13 +178,13 @@ const addToCart = asyncHandler(async (req, res) => {
       );
     } else {
       // User confirmed replacing cart items
-      cart.items = [];
-      cart.appliedCoupon = undefined;
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+      await prisma.cart.update({
+        where: { id: cart.id },
+        data: { partnerId: incomingPartnerId, appliedCoupon: null },
+      });
     }
   }
-
-  // Set active partner
-  cart.partner = food.foodPartner._id;
 
   // Compute item unit price based on variant and add-ons
   let unitPrice = food.price;
@@ -159,44 +200,71 @@ const addToCart = asyncHandler(async (req, res) => {
     unitPrice += addOnsTotal;
   }
 
-  // Check if identical item (same dish, same variant, same addons) already exists
-  const existingItemIndex = cart.items.findIndex((item) => {
-    const isSameFood = item.food.toString() === foodId.toString();
+  // Check if identical item already exists in cart
+  const currentItems = await prisma.cartItem.findMany({ where: { cartId: cart.id } });
+  const existingItem = currentItems.find((item) => {
+    const isSameFood = item.foodId === foodId;
     const isSameVariant =
       (item.selectedVariant?.name || "") === (selectedVariant?.name || "");
     const isSameAddOns =
-      JSON.stringify(item.selectedAddOns?.map((a) => a.name).sort()) ===
-      JSON.stringify(selectedAddOns?.map((a) => a.name).sort());
+      JSON.stringify(item.selectedAddOns || []) === JSON.stringify(selectedAddOns || []);
     return isSameFood && isSameVariant && isSameAddOns;
   });
 
-  if (existingItemIndex > -1) {
-    cart.items[existingItemIndex].quantity += Number(quantity);
-    cart.items[existingItemIndex].itemTotal =
-      cart.items[existingItemIndex].unitPrice * cart.items[existingItemIndex].quantity;
+  if (existingItem) {
+    const updatedQty = existingItem.quantity + Number(quantity);
+    await prisma.cartItem.update({
+      where: { id: existingItem.id },
+      data: {
+        quantity: updatedQty,
+        itemTotal: unitPrice * updatedQty,
+      },
+    });
   } else {
-    cart.items.push({
-      food: food._id,
-      name: food.name,
-      thumbnailUrl: food.thumbnailUrl || "",
-      isVeg: food.isVeg,
-      selectedVariant: selectedVariant || undefined,
-      selectedAddOns: selectedAddOns || [],
-      unitPrice,
-      quantity: Number(quantity),
-      itemTotal: unitPrice * Number(quantity),
+    await prisma.cartItem.create({
+      data: {
+        cartId: cart.id,
+        foodId: food.id,
+        name: food.name,
+        thumbnailUrl: food.thumbnailUrl || "",
+        isVeg: food.isVeg,
+        selectedVariant: selectedVariant || undefined,
+        selectedAddOns: selectedAddOns || [],
+        unitPrice,
+        quantity: Number(quantity),
+        itemTotal: unitPrice * Number(quantity),
+      },
     });
   }
 
-  recalculateCartTotals(cart);
-  await cart.save();
+  // Ensure partnerId is set
+  await prisma.cart.update({
+    where: { id: cart.id },
+    data: { partnerId: incomingPartnerId },
+  });
 
-  // Populate partner details for UI
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.findUnique({
+    where: { id: cart.id },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Item added to cart successfully"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Item added to cart successfully"));
 });
 
 // ── Update Item Quantity ─────────────────────────────────────────────────────
@@ -205,30 +273,48 @@ const updateCartItemQuantity = asyncHandler(async (req, res) => {
   const { itemId } = req.params;
   const { quantity } = req.body;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({ where: { userId } });
   if (!cart) throw new ApiError(404, "Cart not found");
 
-  const itemIndex = cart.items.findIndex(
-    (item) => item._id.toString() === itemId.toString(),
-  );
-  if (itemIndex === -1) throw new ApiError(404, "Item not found in cart");
+  const item = await prisma.cartItem.findFirst({
+    where: { id: itemId, cartId: cart.id },
+  });
+  if (!item) throw new ApiError(404, "Item not found in cart");
 
   if (Number(quantity) <= 0) {
-    // Remove item
-    cart.items.splice(itemIndex, 1);
+    await prisma.cartItem.delete({ where: { id: item.id } });
   } else {
-    cart.items[itemIndex].quantity = Number(quantity);
-    cart.items[itemIndex].itemTotal =
-      cart.items[itemIndex].unitPrice * Number(quantity);
+    await prisma.cartItem.update({
+      where: { id: item.id },
+      data: {
+        quantity: Number(quantity),
+        itemTotal: item.unitPrice * Number(quantity),
+      },
+    });
   }
 
-  recalculateCartTotals(cart);
-  await cart.save();
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.findUnique({
+    where: { id: cart.id },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Cart updated successfully"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Cart updated successfully"));
 });
 
 // ── Remove Single Item ───────────────────────────────────────────────────────
@@ -236,38 +322,62 @@ const removeCartItem = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { itemId } = req.params;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({ where: { userId } });
   if (!cart) throw new ApiError(404, "Cart not found");
 
-  cart.items = cart.items.filter(
-    (item) => item._id.toString() !== itemId.toString(),
-  );
+  await prisma.cartItem.deleteMany({
+    where: { id: itemId, cartId: cart.id },
+  });
 
-  recalculateCartTotals(cart);
-  await cart.save();
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.findUnique({
+    where: { id: cart.id },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Item removed from cart"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Item removed from cart"));
 });
 
 // ── Clear Entire Cart ────────────────────────────────────────────────────────
 const clearCart = asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({ where: { userId } });
   if (cart) {
-    cart.items = [];
-    cart.partner = null;
-    cart.appliedCoupon = undefined;
-    recalculateCartTotals(cart);
-    await cart.save();
+    await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    await prisma.cart.update({
+      where: { id: cart.id },
+      data: {
+        partnerId: null,
+        appliedCoupon: null,
+        pricing: { subtotal: 0, deliveryFee: 0, platformFee: 0, taxes: 0, discountAmount: 0, grandTotal: 0 },
+      },
+    });
   }
+
+  const updatedCart = await prisma.cart.findUnique({
+    where: { userId },
+    include: { items: true, partner: true },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Cart cleared successfully"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Cart cleared successfully"));
 });
 
 // ── Apply Coupon Code ────────────────────────────────────────────────────────
@@ -275,20 +385,24 @@ const applyCoupon = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { code } = req.body;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({
+    where: { userId },
+    include: { items: true },
+  });
+
   if (!cart || cart.items.length === 0) {
     throw new ApiError(400, "Cart is empty. Add items before applying coupon.");
   }
 
-  const coupon = await couponModel.findOne({
-    code: code.trim().toUpperCase(),
-    isActive: true,
+  const coupon = await prisma.coupon.findUnique({
+    where: { code: code.trim().toUpperCase() },
   });
 
-  if (!coupon) throw new ApiError(404, "Invalid or inactive coupon code");
-  if (new Date() > coupon.expiresAt) throw new ApiError(400, "Coupon has expired");
+  if (!coupon || !coupon.isActive) throw new ApiError(404, "Invalid or inactive coupon code");
+  if (coupon.expiresAt && new Date() > coupon.expiresAt) throw new ApiError(400, "Coupon has expired");
 
-  if (cart.pricing.subtotal < coupon.minOrderValue) {
+  const pricing = computeCartPricing(cart.items, null, cart.tipAmount);
+  if (pricing.subtotal < coupon.minOrderValue) {
     throw new ApiError(
       400,
       `Minimum order value of ₹${coupon.minOrderValue} required for this coupon`,
@@ -297,28 +411,44 @@ const applyCoupon = asyncHandler(async (req, res) => {
 
   // Calculate discount
   let discountAmount = 0;
-  if (coupon.discountType === "PERCENTAGE") {
-    discountAmount = (cart.pricing.subtotal * coupon.discountValue) / 100;
-    discountAmount = Math.min(discountAmount, coupon.maxDiscount);
+  if (coupon.type === "percent") {
+    discountAmount = (pricing.subtotal * coupon.value) / 100;
+    if (coupon.maxDiscount) discountAmount = Math.min(discountAmount, coupon.maxDiscount);
   } else {
-    discountAmount = coupon.discountValue;
+    discountAmount = coupon.value;
   }
 
-  cart.appliedCoupon = {
-    couponId: coupon._id,
+  const appliedCoupon = {
+    couponId: coupon.id,
     code: coupon.code,
     discountAmount: Math.round(discountAmount * 100) / 100,
   };
 
-  recalculateCartTotals(cart);
-  await cart.save();
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.update({
+    where: { id: cart.id },
+    data: { appliedCoupon },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res.status(200).json(
     new ApiResponse(
       200,
-      cart,
-      `Coupon ${coupon.code} applied! Saved ₹${cart.pricing.discountAmount} 🎉`,
+      formatCartResponse(updatedCart),
+      `Coupon ${coupon.code} applied! Saved ₹${appliedCoupon.discountAmount} 🎉`,
     ),
   );
 });
@@ -327,17 +457,32 @@ const applyCoupon = asyncHandler(async (req, res) => {
 const removeCoupon = asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({ where: { userId } });
   if (!cart) throw new ApiError(404, "Cart not found");
 
-  cart.appliedCoupon = undefined;
-  recalculateCartTotals(cart);
-  await cart.save();
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.update({
+    where: { id: cart.id },
+    data: { appliedCoupon: null },
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Coupon removed successfully"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Coupon removed successfully"));
 });
 
 // ── Update Delivery Instructions & Tip ───────────────────────────────────────
@@ -345,24 +490,40 @@ const updateInstructionsAndTip = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { instructions, tipAmount } = req.body;
 
-  const cart = await cartModel.findOne({ user: userId });
+  const cart = await prisma.cart.findUnique({ where: { userId } });
   if (!cart) throw new ApiError(404, "Cart not found");
 
+  const data = {};
   if (instructions && Array.isArray(instructions)) {
-    cart.deliveryInstructions = instructions;
+    data.deliveryInstructions = instructions;
   }
-
   if (tipAmount !== undefined) {
-    cart.tipAmount = Math.max(0, Number(tipAmount));
+    data.tipAmount = Math.max(0, Number(tipAmount));
   }
 
-  recalculateCartTotals(cart);
-  await cart.save();
-  await cart.populate("partner", "name restaurantName logo location avgRating isOpen");
+  const updatedCart = await prisma.cart.update({
+    where: { id: cart.id },
+    data,
+    include: {
+      items: true,
+      partner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          latitude: true,
+          longitude: true,
+          avgRating: true,
+          isOpen: true,
+        },
+      },
+    },
+  });
 
   res
     .status(200)
-    .json(new ApiResponse(200, cart, "Delivery instructions updated"));
+    .json(new ApiResponse(200, formatCartResponse(updatedCart), "Delivery instructions updated"));
 });
 
 module.exports = {

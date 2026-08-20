@@ -1,6 +1,4 @@
-const foodModel = require("../models/food.models");
-const likeModel = require("../models/like.models");
-const saveModel = require("../models/save.models");
+const { prisma } = require("../db/prisma");
 const jwt = require("jsonwebtoken");
 const config = require("../config/index");
 const asyncHandler = require("../utils/asyncHandler");
@@ -54,75 +52,107 @@ const getReelsFeed = asyncHandler(async (req, res) => {
   }
 
   // Base query: Only available dishes
-  const query = { isAvailable: true };
+  const where = { isAvailable: true };
 
-  // Cursor-based pagination (fetches documents created before last cursor ID)
+  // Cursor-based pagination (fetches items before last cursor)
   if (cursor) {
-    query._id = { $lt: cursor };
+    where.createdAt = {
+      lt: new Date(cursor),
+    };
   }
 
   // Dietary filter
   if (isVeg !== undefined) {
-    query.isVeg = isVeg === "true" || isVeg === true;
+    where.isVeg = isVeg === "true" || isVeg === true;
   }
 
   // Category filter
   if (category) {
-    query.category = category;
+    where.category = category;
   }
 
   // Determine sort order
-  let sortOptions = { _id: -1 }; // Default: Latest
+  let orderBy = [{ createdAt: "desc" }];
   if (sort === "trending") {
-    sortOptions = { likeCount: -1, viewCount: -1, _id: -1 };
+    orderBy = [{ likeCount: "desc" }, { viewCount: "desc" }, { createdAt: "desc" }];
   }
 
-  const rawReels = await foodModel
-    .find(query)
-    .populate(
-      "foodPartner",
-      "name restaurantName logo coverImage avgRating location isOpen",
-    )
-    .sort(sortOptions)
-    .limit(limit + 1) // Fetch 1 extra to determine hasMore
-    .lean();
+  const rawReels = await prisma.food.findMany({
+    where,
+    include: {
+      variants: true,
+      addOns: true,
+      foodPartner: {
+        select: {
+          id: true,
+          name: true,
+          restaurantName: true,
+          logo: true,
+          coverImage: true,
+          avgRating: true,
+          latitude: true,
+          longitude: true,
+          isOpen: true,
+        },
+      },
+    },
+    orderBy,
+    take: limit + 1,
+  });
 
   const hasMore = rawReels.length > limit;
   const reels = hasMore ? rawReels.slice(0, limit) : rawReels;
-  const nextCursor = reels.length > 0 ? reels[reels.length - 1]._id : null;
+  const nextCursor = reels.length > 0 ? reels[reels.length - 1].createdAt.toISOString() : null;
 
   // Batch query user's like and save states if logged in
   let userLikedSet = new Set();
   let userSavedSet = new Set();
 
   if (currentUserId && reels.length > 0) {
-    const foodIds = reels.map((r) => r._id);
+    const foodIds = reels.map((r) => r.id);
     const [userLikes, userSaves] = await Promise.all([
-      likeModel.find({ user: currentUserId, food: { $in: foodIds } }).lean(),
-      saveModel.find({ user: currentUserId, food: { $in: foodIds } }).lean(),
+      prisma.like.findMany({
+        where: { userId: currentUserId, foodId: { in: foodIds } },
+        select: { foodId: true },
+      }),
+      prisma.save.findMany({
+        where: { userId: currentUserId, foodId: { in: foodIds } },
+        select: { foodId: true },
+      }),
     ]);
 
-    userLikedSet = new Set(userLikes.map((l) => l.food.toString()));
-    userSavedSet = new Set(userSaves.map((s) => s.food.toString()));
+    userLikedSet = new Set(userLikes.map((l) => l.foodId));
+    userSavedSet = new Set(userSaves.map((s) => s.foodId));
   }
 
   // Format response with distance and interaction states
   const formattedReels = reels.map((reel) => {
     let distanceKm = null;
-    if (
-      userLat &&
-      userLng &&
-      reel.foodPartner?.location?.coordinates?.length === 2
-    ) {
-      const [partnerLng, partnerLat] = reel.foodPartner.location.coordinates;
-      distanceKm = calculateDistanceKm(userLat, userLng, partnerLat, partnerLng);
+    if (userLat && userLng && reel.foodPartner?.latitude && reel.foodPartner?.longitude) {
+      distanceKm = calculateDistanceKm(
+        userLat,
+        userLng,
+        reel.foodPartner.latitude,
+        reel.foodPartner.longitude,
+      );
     }
 
     return {
       ...reel,
+      _id: reel.id,
+      foodPartner: reel.foodPartner
+        ? {
+            ...reel.foodPartner,
+            _id: reel.foodPartner.id,
+            location: {
+              type: "Point",
+              coordinates: [reel.foodPartner.longitude, reel.foodPartner.latitude],
+            },
+          }
+        : null,
       distanceKm: distanceKm !== null ? `${distanceKm} km` : undefined,
-      isLiked: userLikedSet.has(reel._id.toString()),
-      isSaved: userSavedSet.has(reel._id.toString()),
+      isLiked: userLikedSet.has(reel.id),
+      isSaved: userSavedSet.has(reel.id),
     };
   });
 
@@ -142,7 +172,10 @@ const getReelsFeed = asyncHandler(async (req, res) => {
 // ── Record Reel View ─────────────────────────────────────────────────────────
 const recordReelView = asyncHandler(async (req, res) => {
   const foodId = req.params.id;
-  await foodModel.findByIdAndUpdate(foodId, { $inc: { viewCount: 1 } });
+  await prisma.food.update({
+    where: { id: foodId },
+    data: { viewCount: { increment: 1 } },
+  });
   res.status(200).json(new ApiResponse(200, null, "View recorded"));
 });
 

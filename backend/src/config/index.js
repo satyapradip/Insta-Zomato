@@ -30,7 +30,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
 
   // ── Database ───────────────────────────────────────────────────────────────
-  MONGO_URI: z.string().min(1, "MONGO_URI is required — add it to your .env"),
+  DATABASE_URL: z.string().optional(),
+  MONGO_URI: z.string().optional(),
 
   // ── JWT ────────────────────────────────────────────────────────────────────
   // min(32) enforces that the secret is long enough to be secure
@@ -99,8 +100,9 @@ const config = {
   // What port should the HTTP server listen on?
   port: env.PORT,
 
-  // MongoDB connection string
+  // Database connection strings
   db: {
+    databaseUrl: env.DATABASE_URL,
     uri: env.MONGO_URI,
   },
 
