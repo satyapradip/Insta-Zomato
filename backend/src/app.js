@@ -5,13 +5,13 @@ const morgan = require("morgan");
 const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const mongoSanitize = require("express-mongo-sanitize");
-const xssClean = require("xss-clean");
 
 const authRoutes = require("./routes/auth.routes");
 const foodRoutes = require("./routes/food.routes");
 const feedRoutes = require("./routes/feed.routes");
 const userRoutes = require("./routes/user.routes");
 const cartRoutes = require("./routes/cart.routes");
+const orderRoutes = require("./routes/order.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -63,10 +63,26 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // ── NoSQL injection prevention — strips `$` and `.` from req.body / params ─
-app.use(mongoSanitize());
+app.use((req, res, next) => {
+  if (req.body) mongoSanitize.sanitize(req.body);
+  if (req.params) mongoSanitize.sanitize(req.params);
+  next();
+});
 
-// ── XSS sanitization — strip HTML tags from req.body / req.query ──────────
-app.use(xssClean());
+// ── XSS sanitization — strip HTML tags from req.body / req.params ──────────
+const { clean: xssCleanUtil } = require("xss-clean/lib/xss");
+app.use((req, res, next) => {
+  if (req.body) req.body = xssCleanUtil(req.body);
+  if (req.params) req.params = xssCleanUtil(req.params);
+  if (req.query && typeof req.query === "object") {
+    try {
+      for (const key of Object.keys(req.query)) {
+        req.query[key] = xssCleanUtil(req.query[key]);
+      }
+    } catch (_) {}
+  }
+  next();
+});
 
 // ── Health check ──────────────────────────────────────────────────────────
 app.get("/", (req, res) => {
@@ -84,8 +100,8 @@ app.use("/api/feed", feedRoutes);
 app.use("/api/users", userRoutes);
 // Cart & Checkout routes
 app.use("/api/cart", cartRoutes);
-// Orders route (to be created): 20 req / min limiter
-app.use("/api/orders", orderLimiter);
+// Orders route: 20 req / min limiter
+app.use("/api/orders", orderLimiter, orderRoutes);
 
 // ── 404 handler (must come after all routes) ──────────────────────────────
 app.use((req, res) => {
