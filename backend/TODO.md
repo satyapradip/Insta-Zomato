@@ -277,37 +277,25 @@
 
 ---
 
-## 🗺️ PHASE 9 — Maps & Location
+## 🗺️ PHASE 9 — Maps & Geospatial Routing *(Completed ✅)*
 
-### 9.1 Setup
-- [ ] Install `@googlemaps/google-maps-services-js`
-- [ ] Create `src/services/maps.service.js`
-- [ ] Store `GOOGLE_MAPS_API_KEY` in `.env`
+### 9.1 Setup & Calculations
+- [x] Create `src/services/map.services.js` with Haversine distance algorithm
+- [x] Urban road routing approximation ($1.25\times$ multiplier) and 20 km/h traffic travel ETA
+- [x] Dynamic delivery fee calculation engine (Tiered: Base ₹30 for $\le 3\text{km}$, ₹10/km, surge multiplier)
 
-### 9.2 Geocoding
-- [ ] `POST /api/location/geocode` — address string → `{ lat, lng }` (used when user types address)
-- [ ] `POST /api/location/reverse-geocode` — `{ lat, lng }` → formatted address (used for GPS auto-detect)
-- [ ] `POST /api/location/autocomplete` — address autocomplete suggestions (for address search UI)
+### 9.2 Geocoding & Autocomplete
+- [x] `POST /api/location/geocode` — address string → `{ latitude, longitude, formattedAddress }`
+- [x] `POST /api/location/reverse-geocode` — `{ latitude, longitude }` → formatted street address
+- [x] `POST /api/location/autocomplete` — address typeahead predictions for search UI
 
-### 9.3 Nearby Restaurants
-- [ ] Add `coordinates: { type: 'Point', coordinates: [lng, lat] }` to FoodPartner model
-- [ ] Create 2dsphere index: `foodPartnerSchema.index({ coordinates: '2dsphere' })`
-- [ ] `GET /api/partners/nearby?lat=&lng=&radius=5` — MongoDB `$near` query
-- [ ] Return distance in km for each restaurant
-
-### 9.4 Delivery Distance & Fee
-- [ ] `GET /api/delivery/estimate?from=<partnerId>&to=<addressId>` — estimate delivery time and fee
-  - [ ] Use Google Distance Matrix API for road distance and duration
-  - [ ] Calculate fee: base fee + per km charge
-- [ ] Store delivery fee on cart and order
-
-### 9.5 Delivery Partner Location Tracking
-- [ ] DeliveryPartner model: `{ ...auth fields, currentLocation: { type: 'Point', coordinates: [] }, isOnline, vehicleType, vehicleNumber, rating, totalDeliveries }`
-- [ ] Create 2dsphere index on `currentLocation`
-- [ ] `PUT /api/delivery/location` — delivery partner updates GPS every 5s (called from app)
-- [ ] `GET /api/orders/:id/track` — user polls this for live delivery location
-  - [ ] Returns: delivery partner location, ETA, current status
-- [ ] Find nearest online delivery partner when assigning orders (auto-assign or manual accept)
+### 9.3 Nearby Restaurants & Delivery Estimation
+- [x] `GET /api/location/nearby-restaurants?latitude=...&longitude=...&radius=5` — query nearby restaurants within radius, sorted by distance in km
+- [x] `GET /api/location/delivery-estimate?partnerId=...&latitude=...&longitude=...` — calculate distance, road travel time, total ETA, and itemized delivery fee breakdown
+- [x] `PUT /api/delivery/location` — delivery rider GPS location updates & Socket.io broadcast
+- [x] `GET /api/orders/:id/track` — user polls this for live delivery location
+  - [x] Returns: delivery partner location, ETA, current status
+- [x] Find nearest online delivery partner when assigning orders (auto-assign or manual accept)
 
 ---
 

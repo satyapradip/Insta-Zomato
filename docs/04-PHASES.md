@@ -136,11 +136,12 @@ gantt
 
 ### 🎯 Milestone 4: Logistics, Dispatch & Multi-Channel Notifications
 
-#### Phase 9: Maps & Geospatial Routing
+#### Phase 9: Maps & Geospatial Routing *(Completed ✅)*
 - **Deliverables:**
-  - MongoDB 2dsphere indexing on restaurants and riders.
-  - Road distance, travel ETA, and dynamic delivery fee calculation.
-  - Address autocomplete and reverse geocoding services.
+  - Haversine distance algorithm & urban road routing approximation ($1.25\times$).
+  - Dynamic delivery fee engine (tiered rates: base ₹30 for $\le 3\text{km}$, ₹10/km, surge multiplier).
+  - Address geocoding, reverse geocoding, and places autocomplete.
+  - Nearby restaurant discovery query with distance in km and ETA.
 
 #### Phase 12: Multi-Channel Notification Engine
 - **Deliverables:**
