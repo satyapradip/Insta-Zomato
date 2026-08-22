@@ -125,12 +125,12 @@ gantt
   - User in-app wallet for instant cancellation refunds and 1-tap checkout.
 - **DoD:** Paid orders update state automatically upon signature verification and webhook receipt.
 
-#### Phase 10: Real-Time Event Architecture (Socket.io)
+#### Phase 10: Real-Time Event Architecture (Socket.io) *(Completed ✅)*
 - **Deliverables:**
   - Socket.io server mounted on HTTP instance with JWT handshake authentication.
-  - Room management: `user:<id>`, `partner:<id>`, `delivery:<id>`, `order:<id>`.
-  - Event broadcasts for order state changes, partner kitchen alerts, and live rider GPS coordinates.
-- **DoD:** Status changes made by the restaurant or rider reflect instantly on the customer's screen in < 100ms.
+  - Room management: `user:<id>`, `partner:<id>`, `delivery:<id>`, `order:<id>`, `food:<id>`, `riders:online`.
+  - Event broadcasts for order state changes, partner kitchen alerts, reel social updates, and live rider GPS coordinates.
+- **DoD:** Status changes made by the restaurant or rider reflect instantly on the customer's screen in < 50ms.
 
 ---
 

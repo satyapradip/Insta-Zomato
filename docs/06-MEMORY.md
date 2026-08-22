@@ -213,8 +213,97 @@ Implemented & Verified:
   [POST]   /api/wallet/topup/create-order-> Generate Razorpay top-up order
   [POST]   /api/wallet/topup/verify      -> Verify signature & credit wallet balance
 
-Pending Implementation:
-  [PUT]    /api/delivery/location        -> Rider updates real-time GPS (3-5s throttled)
+### ADR-009: Real-Time Event Bus with Socket.io & JWT Handshake Authentication
+- **Context:** Mobile clients require instant notifications (<50ms) for order lifecycle transitions, kitchen sound alerts, live rider GPS map tracking, and video reels social interactions without battery-draining HTTP polling.
+- **Decision:** Built a centralized WebSocket hub using `Socket.io` mounted on the Node.js HTTP server. Connection handshakes require valid JWT authentication via `io.use()`. Sockets are automatically assigned to role-isolated rooms (`user:<id>`, `partner:<id>`, `delivery:<id>`, `riders:online`, `order:<id>`, `food:<id>`). Decoupled emitter helpers (`emitToUser`, `emitToPartner`, `emitToOrder`, etc.) allow standard REST controllers to fire real-time broadcasts synchronously.
+- **Status:** Implemented in `src/services/socket.services.js`, `server.js`, `src/controllers/order.controllers.js`, `src/controllers/social.controllers.js`, `src/controllers/delivery.controllers.js`.
+
+---
+
+## 5. API Route Status & Endpoints Inventory
+
+```
+Implemented & Verified:
+  [POST]   /api/auth/user/register       -> User registration
+  [POST]   /api/auth/user/login          -> User login
+  [POST]   /api/auth/user/logout         -> Clear user session & cookie
+  [POST]   /api/auth/foodpartner/register-> Restaurant partner signup
+  [POST]   /api/auth/foodpartner/login   -> Partner login
+  [POST]   /api/auth/foodpartner/logout  -> Clear partner session
+  [POST]   /api/auth/delivery/register   -> Delivery rider signup
+  [POST]   /api/auth/delivery/login      -> Delivery rider login
+  [POST]   /api/auth/delivery/logout     -> Clear rider session
+  [POST]   /api/auth/refresh             -> Universal dual JWT refresh token rotation
+  [GET]    /api/auth/me                  -> Authenticated profile inspection
+
+  [POST]   /api/food/                    -> Upload video reel & create food item with variants (Partner only)
+  [GET]    /api/food/                    -> Fetch food items with search & category filter
+  [GET]    /api/food/:id                 -> Single food item details with restaurant profile
+  [PUT]    /api/food/:id                 -> Update food item (Partner owner only)
+  [PATCH]  /api/food/:id/availability    -> Toggle dish stock availability (Partner owner only)
+  [DELETE] /api/food/:id                 -> Delete dish & purge video from Cloudinary (Partner owner only)
+
+  [GET]    /api/feed                     -> Cursor-paginated Reels Video Stream (?cursor=&limit=&sort=&lat=&lng=)
+  [POST]   /api/feed/:id/view            -> Record reel video view
+
+  [POST]   /api/food/:id/like            -> Toggle like on food reel (real-time broadcast)
+  [POST]   /api/food/:id/save            -> Bookmark reel to wishlist/collection
+  [POST]   /api/food/:id/comments        -> Post comment or nested reply (real-time broadcast)
+  [GET]    /api/food/:id/comments        -> Paginated comments list for food reel
+  [GET]    /api/users/me/likes           -> List all food reels liked by current user
+  [GET]    /api/users/me/saved           -> List all food reels saved by current user
+
+  [POST]   /api/users/addresses          -> Save delivery address (Home/Work/Other)
+  [GET]    /api/users/addresses          -> List saved delivery addresses
+  [DELETE] /api/users/addresses/:id      -> Delete saved address
+  [PUT]    /api/users/addresses/:id/default -> Set default delivery address
+
+  [GET]    /api/cart                     -> Get current user cart with live pricing and itemized breakdown
+  [POST]   /api/cart/add                 -> Add item/variant/addons to cart with single-restaurant lock
+  [PUT]    /api/cart/items/:itemId       -> Update item quantity in cart (0 to remove)
+  [DELETE] /api/cart/items/:itemId       -> Remove item from cart
+  [DELETE] /api/cart                     -> Clear entire cart
+  [POST]   /api/cart/coupon              -> Apply discount coupon (percentage / flat)
+  [DELETE] /api/cart/coupon              -> Remove applied coupon
+  [PUT]    /api/cart/instructions        -> Update delivery instruction pills & tip amount
+
+  [POST]   /api/orders                   -> Create order from cart, snapshot pricing, generate crypto OTP (emits order:new)
+  [GET]    /api/orders                   -> Paginated customer order history (sorted newest first)
+  [GET]    /api/orders/:id               -> Detailed order view with 7-stage audit timeline
+  [POST]   /api/orders/:id/cancel        -> Customer cancellation (auto-refunds to Wallet + emits order:cancelled)
+  [GET]    /api/orders/:id/track         -> Real-time order tracking (rider GPS, restaurant, timeline)
+  [GET]    /api/orders/partner/orders    -> Partner kitchen incoming and active orders queue
+  [PUT]    /api/orders/:id/confirm       -> Partner confirms order with prep time (emits order:status_update)
+  [PUT]    /api/orders/:id/preparing     -> Partner marks cooking in progress (emits order:status_update)
+  [PUT]    /api/orders/:id/ready         -> Partner marks food packed (emits order:status_update + dispatch broadcast)
+  [PUT]    /api/orders/:id/partner-cancel-> Partner cancels order (auto-refunds to Wallet + emits order:cancelled)
+  [GET]    /api/orders/rider/available   -> Query open ready orders for delivery dispatch
+  [POST]   /api/orders/:id/accept-delivery -> Rider claims/accepts delivery assignment (emits delivery:assigned)
+  [PUT]    /api/orders/:id/pickup        -> Rider picks up food from restaurant (emits order:status_update)
+  [PUT]    /api/orders/:id/out-for-delivery -> Rider marks transit to customer (emits order:status_update)
+  [PUT]    /api/orders/:id/deliver       -> Rider verifies 4-digit OTP & completes delivery (emits DELIVERED)
+  [PUT]    /api/orders/:id/delivery-failed -> Rider marks delivery failed with reason
+  [GET]    /api/orders/admin/all         -> Global order stream for admin panel
+
+  [POST]   /api/payment/create-order     -> Generate Razorpay order (paise conversion)
+  [POST]   /api/payment/verify           -> Verify Razorpay HMAC-SHA256 signature
+  [POST]   /api/payment/webhook          -> Razorpay asynchronous webhook processor
+  [POST]   /api/payment/wallet-pay       -> 1-tap checkout via In-App Digital Wallet
+  [GET]    /api/wallet                   -> View user wallet balance & transaction ledger
+  [POST]   /api/wallet/topup/create-order-> Generate Razorpay top-up order
+  [POST]   /api/wallet/topup/verify      -> Verify signature & credit wallet balance
+
+  [PUT]    /api/delivery/location        -> Rider updates real-time GPS (emits order:location_update)
+  [PUT]    /api/delivery/toggle-online   -> Rider toggles availability status (ONLINE / OFFLINE)
+  [GET]    /api/delivery/profile         -> Rider profile and active delivery order details
+
+WebSocket Channels (Socket.io):
+  - user:<userId>                        -> Direct alerts to customer
+  - partner:<partnerId>                  -> Kitchen order display ding & cancellation alerts
+  - delivery:<riderId>                   -> Rider assignment alerts
+  - riders:online                        -> Broadcast channel for open delivery dispatch
+  - order:<orderId>                      -> Real-time tracking room (status, timeline, GPS updates)
+  - food:<foodId>                        -> Real-time reels social room (live likes & comments)
 ```
 
 ---
@@ -227,10 +316,10 @@ Pending Implementation:
 3. **Sprint 3 (Cart & Pricing Engine):** Single-restaurant lock, coupon discount calculator, itemized bills (GST, delivery fee, platform fee, rider tip).
 4. **Sprint 4 / Phase 7 (Order FSM & Lifecycle):** Finite state machine with role-based transitions, 4-digit Delivery OTP, address book system, and full lifecycle endpoints.
 5. **Phase 8 (Razorpay Payments & Wallet Ledger):** Razorpay order creation in paise, cryptographic HMAC-SHA256 signature verification, server-to-server webhooks, in-app double-entry digital wallet ledger, 1-tap wallet checkout, and instant cancellation refunds.
+6. **Phase 10 (Real-Time Event Architecture - Socket.io):** Socket.io WebSocket server, JWT handshake authentication, dynamic room routing (`user`, `partner`, `delivery`, `order`, `food`), live GPS location streaming (`order:location_update`), kitchen alerts (`order:new`), and live reel social stream (`food:like_update`, `food:comment_new`).
 
 ### Next Starting Point:
-👉 **Phase 10: Real-Time Event Architecture (Socket.io)** or **Phase 9: Maps & Geospatial Routing**
-- Mounting Socket.io on Node HTTP server with JWT handshake authentication
-- Order tracking rooms & live state update broadcasts
-- Next: **Frontend Workspace Setup (Next.js 16 + shadcn/ui)**.
+👉 **Phase 9: Maps & Geospatial Routing** or **Frontend Workspace Setup (Next.js 16 + shadcn/ui)**
+- Haversine distance, travel ETA, dynamic delivery fee calculation, and geocoding.
+- Frontend: Next.js 16 App Router with mobile-first vertical reels stream and 1-tap checkout drawers.
 

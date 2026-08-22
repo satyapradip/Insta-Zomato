@@ -7,7 +7,9 @@ const config = require("./src/config/index");
 
 // logger must be required AFTER config (logger.js imports config)
 const logger = require("./src/config/logger");
+const http = require("http");
 const app = require("./src/app");
+const { initSocket } = require("./src/services/socket.services");
 const connectDB = require("./src/db/db");
 
 // ── Catch any errors that slipped past try/catch ────────────────────────────
@@ -36,7 +38,14 @@ connectPostgres().catch((err) => {
   logger.error("Failed to connect to PostgreSQL:", err);
 });
 
-// Start the HTTP server on the port defined in .env (defaults to 3000)
-app.listen(config.port, () => {
-  logger.info(`Server started`, { mode: config.env, port: config.port });
+// Create HTTP server instance & mount Socket.io
+const server = http.createServer(app);
+initSocket(server);
+
+// Start the HTTP & WebSocket server on the port defined in .env (defaults to 3000)
+server.listen(config.port, () => {
+  logger.info(`Server started with WebSocket hub ⚡`, {
+    mode: config.env,
+    port: config.port,
+  });
 });

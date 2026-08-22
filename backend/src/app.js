@@ -14,6 +14,7 @@ const cartRoutes = require("./routes/cart.routes");
 const orderRoutes = require("./routes/order.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const walletRoutes = require("./routes/wallet.routes");
+const deliveryRoutes = require("./routes/delivery.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -116,6 +117,8 @@ app.use("/api/orders", orderLimiter, orderRoutes);
 app.use("/api/payment", paymentRoutes);
 // In-App Digital Wallet routes
 app.use("/api/wallet", walletRoutes);
+// Delivery Rider & Live GPS routes
+app.use("/api/delivery", deliveryRoutes);
 
 // ── 404 handler (must come after all routes) ──────────────────────────────
 app.use((req, res) => {

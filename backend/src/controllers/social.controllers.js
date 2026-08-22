@@ -2,6 +2,7 @@ const { prisma } = require("../db/prisma");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
+const { emitToFoodReel } = require("../services/socket.services");
 
 // ── Toggle Like on Food Reel ─────────────────────────────────────────────────
 const toggleLike = asyncHandler(async (req, res) => {
@@ -31,10 +32,20 @@ const toggleLike = asyncHandler(async (req, res) => {
       where: { id: foodId },
       data: { likeCount: { decrement: 1 } },
     });
+    const finalLikeCount = Math.max(0, updatedFood.likeCount);
+
+    // Live WebSocket broadcast to all viewers watching this reel
+    emitToFoodReel(foodId, "food:like_update", {
+      foodId,
+      likeCount: finalLikeCount,
+      userId,
+      isLiked: false,
+    });
+
     return res.status(200).json(
       new ApiResponse(
         200,
-        { isLiked: false, likeCount: Math.max(0, updatedFood.likeCount) },
+        { isLiked: false, likeCount: finalLikeCount },
         "Food reel unliked",
       ),
     );
@@ -47,6 +58,15 @@ const toggleLike = asyncHandler(async (req, res) => {
       where: { id: foodId },
       data: { likeCount: { increment: 1 } },
     });
+
+    // Live WebSocket broadcast to all viewers watching this reel
+    emitToFoodReel(foodId, "food:like_update", {
+      foodId,
+      likeCount: updatedFood.likeCount,
+      userId,
+      isLiked: true,
+    });
+
     return res.status(200).json(
       new ApiResponse(
         200,
@@ -155,6 +175,12 @@ const addComment = asyncHandler(async (req, res) => {
     _id: comment.id,
     user: { ...comment.user, _id: comment.user.id },
   };
+
+  // Live WebSocket broadcast to all viewers watching this reel
+  emitToFoodReel(foodId, "food:comment_new", {
+    foodId,
+    comment: responseObj,
+  });
 
   res
     .status(201)

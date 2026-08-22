@@ -11,6 +11,13 @@ const {
   createTimelineEntry,
 } = require("../services/orderStateMachine.services");
 const walletService = require("../services/wallet.services");
+const {
+  emitToUser,
+  emitToPartner,
+  emitToRider,
+  emitToOrder,
+  emitToOnlineRiders,
+} = require("../services/socket.services");
 
 function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
   let subtotal = 0;
@@ -244,6 +251,15 @@ const placeOrder = asyncHandler(async (req, res) => {
   const responseData = formatOrderResponse(newOrder, userId, "customer");
   responseData.deliveryOtp = plainOtp;
 
+  // Real-time broadcast: Kitchen incoming order alert & customer confirmation
+  emitToPartner(partner.id, "order:new", {
+    order: formatOrderResponse(newOrder, partner.id, "foodpartner"),
+    message: "🔔 New incoming order received!",
+  });
+  emitToUser(userId, "order:created", {
+    order: responseData,
+  });
+
   res.status(201).json(
     new ApiResponse(201, responseData, "Order placed successfully! 🚀"),
   );
@@ -411,9 +427,24 @@ const cancelOrderByCustomer = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, userId, "customer");
+
+  // Real-time broadcast: Order cancelled by customer
+  emitToPartner(order.partnerId, "order:cancelled", {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    reason,
+    cancelledBy: "customer",
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "CANCELLED",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, userId, "customer"), "Order cancelled successfully"));
+    .json(new ApiResponse(200, formattedResp, "Order cancelled successfully"));
 });
 
 /**
@@ -550,9 +581,24 @@ const confirmOrderByPartner = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, partnerId, "foodpartner");
+
+  // Real-time broadcast: Kitchen accepted order
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "CONFIRMED",
+    estimatedPrepTimeMinutes: prepTimeMinutes,
+    order: formattedResp,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "CONFIRMED",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order confirmed by restaurant"));
+    .json(new ApiResponse(200, formattedResp, "Order confirmed by restaurant"));
 });
 
 /**
@@ -589,9 +635,23 @@ const preparingOrderByPartner = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, partnerId, "foodpartner");
+
+  // Real-time broadcast: Cooking in progress
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "PREPARING",
+    order: formattedResp,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "PREPARING",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order marked as preparing"));
+    .json(new ApiResponse(200, formattedResp, "Order marked as preparing"));
 });
 
 /**
@@ -628,9 +688,29 @@ const readyOrderByPartner = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, partnerId, "foodpartner");
+
+  // Real-time broadcast: Food is packed and ready for rider pickup
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "READY_FOR_PICKUP",
+    order: formattedResp,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "READY_FOR_PICKUP",
+    order: formattedResp,
+  });
+  emitToOnlineRiders("order:available_for_pickup", {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    restaurantName: order.partner?.restaurantName,
+    deliveryAddress: order.deliveryAddress,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order marked ready for pickup"));
+    .json(new ApiResponse(200, formattedResp, "Order marked ready for pickup"));
 });
 
 /**
@@ -698,9 +778,25 @@ const cancelOrderByPartner = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, partnerId, "foodpartner");
+
+  // Real-time broadcast: Restaurant cancelled order
+  emitToUser(order.userId, "order:cancelled", {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    reason,
+    cancelledBy: "foodpartner",
+    refundStatus: cancellation.refundStatus,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "CANCELLED",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, partnerId, "foodpartner"), "Order cancelled by restaurant"));
+    .json(new ApiResponse(200, formattedResp, "Order cancelled by restaurant"));
 });
 
 // ── DELIVERY PARTNER (RIDER) CONTROLLERS ────────────────────────────────────
@@ -816,9 +912,30 @@ const acceptDeliveryByRider = asyncHandler(async (req, res) => {
     data: { currentOrderId: order.id },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
+
+  // Real-time broadcast: Rider assigned to order
+  emitToUser(order.userId, "delivery:assigned", {
+    orderId: order.id,
+    riderId,
+    riderName: req.user.name,
+    order: formattedResp,
+  });
+  emitToPartner(order.partnerId, "delivery:assigned", {
+    orderId: order.id,
+    riderId,
+    riderName: req.user.name,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "READY_FOR_PICKUP",
+    deliveryPartnerId: riderId,
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Delivery dispatch accepted successfully"));
+    .json(new ApiResponse(200, formattedResp, "Delivery dispatch accepted successfully"));
 });
 
 /**
@@ -855,9 +972,23 @@ const pickupOrderByRider = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
+
+  // Real-time broadcast: Rider picked up food
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "PICKED_UP",
+    order: formattedResp,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "PICKED_UP",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order marked as picked up"));
+    .json(new ApiResponse(200, formattedResp, "Order marked as picked up"));
 });
 
 /**
@@ -894,9 +1025,23 @@ const outForDeliveryByRider = asyncHandler(async (req, res) => {
     include: { items: true, timeline: true },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
+
+  // Real-time broadcast: Rider en route
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "OUT_FOR_DELIVERY",
+    order: formattedResp,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "OUT_FOR_DELIVERY",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order marked out for delivery"));
+    .json(new ApiResponse(200, formattedResp, "Order marked out for delivery"));
 });
 
 /**
@@ -959,9 +1104,27 @@ const deliverOrderByRider = asyncHandler(async (req, res) => {
     },
   });
 
+  const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
+
+  // Real-time broadcast: Order delivered & verified with OTP
+  emitToUser(order.userId, "order:status_update", {
+    orderId: order.id,
+    status: "DELIVERED",
+    order: formattedResp,
+  });
+  emitToPartner(order.partnerId, "order:delivered", {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+  });
+  emitToOrder(order.id, "order:status_update", {
+    orderId: order.id,
+    status: "DELIVERED",
+    order: formattedResp,
+  });
+
   res
     .status(200)
-    .json(new ApiResponse(200, formatOrderResponse(updatedOrder, riderId, "deliverypartner"), "Order delivered successfully! 🎉"));
+    .json(new ApiResponse(200, formattedResp, "Order delivered and confirmed successfully! 🎉"));
 });
 
 /**

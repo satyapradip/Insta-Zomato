@@ -311,29 +311,28 @@
 
 ---
 
-## ⚡ PHASE 10 — Real-Time with Socket.io
+## ⚡ PHASE 10 — Real-Time with Socket.io *(Completed ✅)*
 
 ### 10.1 Setup
-- [ ] Install `socket.io`
-- [ ] Create `src/socket/index.js` — initialize on HTTP server
-- [ ] Authenticate socket connections with JWT (middleware on `io.use(...)`)
-- [ ] Organize into rooms: `user:<userId>`, `partner:<partnerId>`, `delivery:<deliveryId>`, `order:<orderId>`
+- [x] Install `socket.io` & `socket.io-client`
+- [x] Create `src/services/socket.services.js` — initialize on HTTP server
+- [x] Authenticate socket connections with JWT (middleware on `io.use(...)`)
+- [x] Organize into rooms: `user:<userId>`, `partner:<partnerId>`, `delivery:<deliveryId>`, `order:<orderId>`, `food:<foodId>`, `riders:online`
 
 ### 10.2 Order Real-Time Events
-- [ ] Emit `order:new` to partner room when user places order
-- [ ] Emit `order:confirmed` to user room when partner confirms
-- [ ] Emit `order:status_update` to user room on every status change
-- [ ] Emit `order:location_update` to user room every time delivery partner updates GPS
-- [ ] Emit `order:delivered` to user room on delivery confirmation
+- [x] Emit `order:new` to partner room when user places order
+- [x] Emit `order:status_update` to user and order room on every status change (`CONFIRMED`, `PREPARING`, `READY_FOR_PICKUP`, `PICKED_UP`, `OUT_FOR_DELIVERY`, `DELIVERED`, `CANCELLED`)
+- [x] Emit `order:location_update` to user and order room when delivery partner streams GPS
+- [x] Emit `order:available_for_pickup` to online riders broadcast pool
 
-### 10.3 Partner Real-Time Events
-- [ ] Emit `order:new` with sound alert to partner dashboard
-- [ ] Emit `delivery:assigned` to delivery partner when order is assigned to them
-- [ ] Emit `partner:rating_received` when a user submits a rating
+### 10.3 Partner & Rider Real-Time Events
+- [x] Emit `order:new` with sound alert payload to partner kitchen dashboard
+- [x] Emit `delivery:assigned` to customer & partner when rider accepts order
+- [x] Emit `order:cancelled` with refund details to partner and user rooms
 
 ### 10.4 Feed Real-Time Events
-- [ ] Emit `food:like_update` — broadcast updated like count to everyone viewing that reel
-- [ ] Emit `food:comment_new` — push new comment to all viewers of that reel
+- [x] Emit `food:like_update` — broadcast updated like count to everyone viewing that reel
+- [x] Emit `food:comment_new` — push new comment object to all viewers of that reel
 
 ---
 
