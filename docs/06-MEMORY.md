@@ -133,6 +133,11 @@ All variables are validated at startup via [`src/config/index.js`](file:///e:/In
 - **Decision:** Migrated database layer to Serverless PostgreSQL (Neon) with Prisma ORM `v6.4.1`. All 16 entity tables, composite unique indexes, relations, and enums are defined in `prisma/schema.prisma`. Controllers utilize type-safe PrismaClient queries and Prisma Studio visual UI.
 - **Status:** Implemented in `prisma/schema.prisma`, `src/db/prisma.js`, and verified across all controllers.
 
+### ADR-008: Cryptographic HMAC Payment Signatures & In-App Double-Entry Wallet Ledger
+- **Context:** Reliance solely on client-side checkout responses leaves payment states vulnerable to forgery/tampering. Additionally, standard bank gateway refunds take 5–7 days, causing poor customer experience upon pre-cooking cancellations.
+- **Decision:** All Razorpay payments require HMAC-SHA256 constant-time signature verification (`crypto.timingSafeEqual`). Server-to-server Webhooks (`payment.captured`, `payment.failed`, `refund.processed`) provide network-failure resilience. An In-App Digital Wallet (`Wallet` & `WalletTransaction` ledger) enables instantaneous 1-tap checkouts and sub-second auto-refunds upon order cancellation.
+- **Status:** Implemented in `src/services/payment.services.js`, `src/services/wallet.services.js`, `src/controllers/payment.controllers.js`, `src/controllers/wallet.controllers.js`.
+
 ---
 
 ## 5. API Route Status & Endpoints Inventory
@@ -185,13 +190,13 @@ Implemented & Verified:
   [POST]   /api/orders                   -> Create order from cart, snapshot pricing, generate crypto OTP
   [GET]    /api/orders                   -> Paginated customer order history (sorted newest first)
   [GET]    /api/orders/:id               -> Detailed order view with 7-stage audit timeline
-  [POST]   /api/orders/:id/cancel        -> Customer cancellation (PENDING or CONFIRMED state only)
+  [POST]   /api/orders/:id/cancel        -> Customer cancellation (auto-refunds to Wallet if paid)
   [GET]    /api/orders/:id/track         -> Real-time order tracking (rider GPS, restaurant, timeline)
   [GET]    /api/orders/partner/orders    -> Partner kitchen incoming and active orders queue
   [PUT]    /api/orders/:id/confirm       -> Partner confirms order with estimated prep time
   [PUT]    /api/orders/:id/preparing     -> Partner marks cooking in progress
   [PUT]    /api/orders/:id/ready         -> Partner marks food packed (READY_FOR_PICKUP)
-  [PUT]    /api/orders/:id/partner-cancel-> Partner cancels order with mandatory reason
+  [PUT]    /api/orders/:id/partner-cancel-> Partner cancels order (auto-refunds to Wallet if paid)
   [GET]    /api/orders/rider/available   -> Query open ready orders for delivery dispatch
   [POST]   /api/orders/:id/accept-delivery -> Rider claims/accepts delivery assignment
   [PUT]    /api/orders/:id/pickup        -> Rider picks up food from restaurant
@@ -200,10 +205,15 @@ Implemented & Verified:
   [PUT]    /api/orders/:id/delivery-failed -> Rider marks delivery failed with reason
   [GET]    /api/orders/admin/all         -> Global order stream for admin panel
 
-Pending Implementation:
-  [POST]   /api/payment/create-order     -> Generate Razorpay order
+  [POST]   /api/payment/create-order     -> Generate Razorpay order (paise conversion)
   [POST]   /api/payment/verify           -> Verify Razorpay HMAC-SHA256 signature
   [POST]   /api/payment/webhook          -> Razorpay asynchronous webhook processor
+  [POST]   /api/payment/wallet-pay       -> 1-tap checkout via In-App Digital Wallet
+  [GET]    /api/wallet                   -> View user wallet balance & transaction ledger
+  [POST]   /api/wallet/topup/create-order-> Generate Razorpay top-up order
+  [POST]   /api/wallet/topup/verify      -> Verify signature & credit wallet balance
+
+Pending Implementation:
   [PUT]    /api/delivery/location        -> Rider updates real-time GPS (3-5s throttled)
 ```
 
@@ -212,14 +222,15 @@ Pending Implementation:
 ## 6. Session Checkpoint & Next Steps
 
 ### What We Completed:
-1. **Sprint 1 (Auth & RBAC):** Dual JWT with token reuse revocation, Bcrypt refresh token database hashing, RBAC middlewares (`requireCustomer`, `requireFoodPartner`, `requireDeliveryPartner`), and multi-role models.
-2. **Sprint 2 (Media & Discovery Feed):** Food model with Flipkart-style variants & add-ons, Cloudinary poster generation, cursor-based video discovery feed with proximity in km, and social interactions (Likes, Saves, Comments).
-3. **Sprint 3 (Cart & Pricing Engine):** Single-restaurant lock with 409 Conflict handler, coupon discount calculator, itemized bills (GST, delivery fee, platform fee, rider tip), and delivery instruction pills.
-4. **Sprint 4 / Phase 7 (Order FSM & Lifecycle):** Finite state machine with role-based transitions, 4-digit cryptographically generated & bcrypt-hashed Delivery OTP, address book system, full role endpoints for Customer/Partner/Rider/Admin, and 42 automated integration tests.
+1. **Sprint 1 (Auth & RBAC):** Dual JWT with token reuse revocation, Bcrypt refresh token database hashing, RBAC middlewares, and multi-role models.
+2. **Sprint 2 (Media & Discovery Feed):** Food model with variants & add-ons, Cloudinary poster generation, cursor-based video discovery feed, and social interactions.
+3. **Sprint 3 (Cart & Pricing Engine):** Single-restaurant lock, coupon discount calculator, itemized bills (GST, delivery fee, platform fee, rider tip).
+4. **Sprint 4 / Phase 7 (Order FSM & Lifecycle):** Finite state machine with role-based transitions, 4-digit Delivery OTP, address book system, and full lifecycle endpoints.
+5. **Phase 8 (Razorpay Payments & Wallet Ledger):** Razorpay order creation in paise, cryptographic HMAC-SHA256 signature verification, server-to-server webhooks, in-app double-entry digital wallet ledger, 1-tap wallet checkout, and instant cancellation refunds.
 
 ### Next Starting Point:
-👉 **Phase 8: Razorpay Payments & Webhook Verification**
-- `backend/src/services/payment.services.js` (Razorpay order generation & HMAC-SHA256 signature verification)
-- `backend/src/controllers/payment.controllers.js` & `backend/src/routes/payment.routes.js`
-- `backend/src/routes/payment.routes.js` (Asynchronous webhook handler with idempotency)
-- Next: **Phase 10: Socket.io Real-Time Order & GPS Hub** or **Frontend Workspace Setup**.
+👉 **Phase 10: Real-Time Event Architecture (Socket.io)** or **Phase 9: Maps & Geospatial Routing**
+- Mounting Socket.io on Node HTTP server with JWT handshake authentication
+- Order tracking rooms & live state update broadcasts
+- Next: **Frontend Workspace Setup (Next.js 16 + shadcn/ui)**.
+

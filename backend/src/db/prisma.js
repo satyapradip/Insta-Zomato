@@ -8,14 +8,24 @@ const prisma = new PrismaClient({
       : ["error"],
 });
 
-async function connectPostgres() {
-  try {
-    await prisma.$connect();
-    logger.info(" Connected to PostgreSQL (Neon)");
-    return prisma;
-  } catch (error) {
-    logger.error(" PostgreSQL connection failed", { error: error.message });
-    throw error;
+async function connectPostgres(maxRetries = 3, delayMs = 1500) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await prisma.$connect();
+      logger.info("Connected to PostgreSQL (Neon)");
+      return prisma;
+    } catch (error) {
+      logger.warn(
+        `PostgreSQL connection attempt ${attempt}/${maxRetries} failed: ${error.message}`,
+      );
+      if (attempt === maxRetries) {
+        logger.error("PostgreSQL connection failed after all retries", {
+          error: error.message,
+        });
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
   }
 }
 

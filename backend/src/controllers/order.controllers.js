@@ -10,6 +10,7 @@ const {
   hashDeliveryOtp,
   createTimelineEntry,
 } = require("../services/orderStateMachine.services");
+const walletService = require("../services/wallet.services");
 
 function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
   let subtotal = 0;
@@ -366,24 +367,45 @@ const cancelOrderByCustomer = asyncHandler(async (req, res) => {
     reason,
     cancelledBy: "customer",
     cancelledAt: new Date(),
-    refundStatus: order.paymentStatus === "PAID" ? "PENDING" : "NOT_APPLICABLE",
+    refundStatus: order.paymentStatus === "PAID" ? "PROCESSED" : "NOT_APPLICABLE",
     refundAmount: order.pricing?.grandTotal || 0,
+    refundedTo: order.paymentStatus === "PAID" ? "WALLET" : undefined,
   };
+
+  const timelineEntries = [
+    {
+      status: "CANCELLED",
+      note: `Order cancelled by customer: ${reason}`,
+      actorRole: "customer",
+      actorId: userId,
+    },
+  ];
+
+  // If order was paid, credit instant refund to user's wallet
+  if (order.paymentStatus === "PAID" && Number(order.pricing?.grandTotal || 0) > 0) {
+    const refundAmount = Number(order.pricing.grandTotal);
+    const refundTx = await walletService.creditWallet({
+      userId: order.userId,
+      amount: refundAmount,
+      description: `Instant refund for cancelled Order #${order.orderNumber}`,
+      orderId: order.id,
+    });
+    cancellation.refundTransactionId = refundTx.transaction.id;
+    timelineEntries.push({
+      status: "CANCELLED",
+      note: `Instant refund of ₹${refundAmount} credited to customer In-App Wallet`,
+      actorRole: "system",
+    });
+  }
 
   const updatedOrder = await prisma.order.update({
     where: { id },
     data: {
       status: "CANCELLED",
+      paymentStatus: order.paymentStatus === "PAID" ? "REFUNDED" : order.paymentStatus,
       cancellation,
       timeline: {
-        create: [
-          {
-            status: "CANCELLED",
-            note: `Order cancelled by customer: ${reason}`,
-            actorRole: "customer",
-            actorId: userId,
-          },
-        ],
+        create: timelineEntries,
       },
     },
     include: { items: true, timeline: true },
@@ -632,24 +654,45 @@ const cancelOrderByPartner = asyncHandler(async (req, res) => {
     reason,
     cancelledBy: "foodpartner",
     cancelledAt: new Date(),
-    refundStatus: order.paymentStatus === "PAID" ? "PENDING" : "NOT_APPLICABLE",
+    refundStatus: order.paymentStatus === "PAID" ? "PROCESSED" : "NOT_APPLICABLE",
     refundAmount: order.pricing?.grandTotal || 0,
+    refundedTo: order.paymentStatus === "PAID" ? "WALLET" : undefined,
   };
+
+  const timelineEntries = [
+    {
+      status: "CANCELLED",
+      note: `Order cancelled by restaurant: ${reason}`,
+      actorRole: "foodpartner",
+      actorId: partnerId,
+    },
+  ];
+
+  // If order was paid, credit instant refund to user's wallet
+  if (order.paymentStatus === "PAID" && Number(order.pricing?.grandTotal || 0) > 0) {
+    const refundAmount = Number(order.pricing.grandTotal);
+    const refundTx = await walletService.creditWallet({
+      userId: order.userId,
+      amount: refundAmount,
+      description: `Instant refund for cancelled Order #${order.orderNumber} (Restaurant Cancelled)`,
+      orderId: order.id,
+    });
+    cancellation.refundTransactionId = refundTx.transaction.id;
+    timelineEntries.push({
+      status: "CANCELLED",
+      note: `Instant refund of ₹${refundAmount} credited to customer In-App Wallet`,
+      actorRole: "system",
+    });
+  }
 
   const updatedOrder = await prisma.order.update({
     where: { id },
     data: {
       status: "CANCELLED",
+      paymentStatus: order.paymentStatus === "PAID" ? "REFUNDED" : order.paymentStatus,
       cancellation,
       timeline: {
-        create: [
-          {
-            status: "CANCELLED",
-            note: `Order cancelled by restaurant: ${reason}`,
-            actorRole: "foodpartner",
-            actorId: partnerId,
-          },
-        ],
+        create: timelineEntries,
       },
     },
     include: { items: true, timeline: true },

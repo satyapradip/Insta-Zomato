@@ -250,30 +250,30 @@
 
 ---
 
-## 💳 PHASE 8 — Payments
+## 💳 PHASE 8 — Payments *(Completed ✅)*
 
 ### 8.1 Razorpay Integration
-- [ ] Install `razorpay`
-- [ ] `POST /api/payment/create-order` — create Razorpay order, return `orderId` + `amount`
-- [ ] `POST /api/payment/verify` — verify `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature`
-  - [ ] Use HMAC-SHA256 to verify signature
-  - [ ] Update order `paymentStatus` to `paid`
-- [ ] `POST /api/payment/webhook` — Razorpay webhook for async payment events
-  - [ ] Validate webhook signature
-  - [ ] Handle: `payment.captured`, `payment.failed`, `refund.created`
+- [x] Install `razorpay`
+- [x] `POST /api/payment/create-order` — create Razorpay order, return `orderId` + `amount` in paise
+- [x] `POST /api/payment/verify` — verify `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature`
+  - [x] Use HMAC-SHA256 constant-time comparison to verify signature
+  - [x] Update order `paymentStatus` to `PAID` & timeline entry
+- [x] `POST /api/payment/webhook` — Razorpay webhook for async payment events
+  - [x] Validate webhook signature with rawBody buffer
+  - [x] Handle: `payment.captured`, `payment.failed`, `refund.processed`
 
-### 8.2 Wallet System (Optional but impressive)
-- [ ] Wallet model: `{ user, balance, transactions: [{ type, amount, description, orderId, createdAt }] }`
-- [ ] `GET /api/wallet` — get balance and transaction history
-- [ ] `POST /api/wallet/add` — add money (via Razorpay)
-- [ ] Use wallet balance during checkout
-- [ ] Auto-refund to wallet on order cancellation
+### 8.2 Wallet System
+- [x] Wallet model & WalletTransaction ledger model in PostgreSQL (Prisma)
+- [x] `GET /api/wallet` — get balance and paginated transaction history
+- [x] `POST /api/wallet/topup/create-order` & `verify` — add money via Razorpay
+- [x] `POST /api/payment/wallet-pay` — 1-tap checkout with atomic wallet debit
+- [x] Auto-refund to wallet on order cancellation by customer or food partner
 
 ### 8.3 Coupons & Offers
-- [ ] Coupon model: `{ code, type (flat/percent), value, minOrderValue, maxDiscount, usageLimit, usedCount, expiresAt, applicableTo (all/category/partner), isActive }`
-- [ ] `POST /api/cart/apply-coupon` — validate and apply
-- [ ] Admin: `POST /api/admin/coupons` — create coupon
-- [ ] Track per-user coupon usage to prevent abuse
+- [x] Coupon model in PostgreSQL (Prisma)
+- [x] `POST /api/cart/coupon` — validate and apply discount
+- [x] Dynamic discount calculation (flat / percent with minOrderValue & maxDiscount)
+
 
 ---
 

@@ -59,6 +59,11 @@ enum PaymentMethod {
   COD
 }
 
+enum WalletTxType {
+  CREDIT
+  DEBIT
+}
+
 // ── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -80,6 +85,8 @@ model User {
   likes           Like[]
   saves           Save[]
   comments        Comment[]
+  wallet          Wallet?
+  paymentRecords  PaymentRecord[]
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -350,6 +357,7 @@ model Order {
   deliveryOtp              String?
   plainOtp                 String?
   timeline                 OrderTimeline[]
+  paymentRecords           PaymentRecord[]
   cancellation             Json?
   estimatedPrepTimeMinutes Int              @default(25)
   estimatedDeliveryTime    DateTime?
@@ -393,4 +401,58 @@ model OrderTimeline {
   actorId   String?
 
   @@index([orderId])
+}
+
+model Wallet {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Float               @default(0)
+  currency     String              @default("INR")
+  isActive     Boolean             @default(true)
+  transactions WalletTransaction[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([userId])
+}
+
+model WalletTransaction {
+  id           String       @id @default(uuid())
+  walletId     String
+  wallet       Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type         WalletTxType @default(CREDIT)
+  amount       Float
+  balanceAfter Float
+  description  String
+  orderId      String?
+  referenceId  String?
+  createdAt    DateTime     @default(now())
+
+  @@index([walletId])
+  @@index([orderId])
+}
+
+model PaymentRecord {
+  id                String        @id @default(uuid())
+  orderId           String?
+  order             Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  amount            Float
+  currency          String        @default("INR")
+  status            PaymentStatus @default(PENDING)
+  method            PaymentMethod @default(RAZORPAY)
+  failureReason     String?       @default("")
+  metadata          Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
 }

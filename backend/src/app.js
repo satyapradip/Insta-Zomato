@@ -12,6 +12,8 @@ const feedRoutes = require("./routes/feed.routes");
 const userRoutes = require("./routes/user.routes");
 const cartRoutes = require("./routes/cart.routes");
 const orderRoutes = require("./routes/order.routes");
+const paymentRoutes = require("./routes/payment.routes");
+const walletRoutes = require("./routes/wallet.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -58,7 +60,15 @@ app.use(morgan(config.isProd ? "combined" : "dev", { stream: logger.stream }));
 app.use(compression());
 
 // ── Body parsers ──────────────────────────────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
+// Capture rawBody buffer for authentic Razorpay webhook HMAC signature verification
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
@@ -102,6 +112,10 @@ app.use("/api/users", userRoutes);
 app.use("/api/cart", cartRoutes);
 // Orders route: 20 req / min limiter
 app.use("/api/orders", orderLimiter, orderRoutes);
+// Razorpay Payment & Webhook routes
+app.use("/api/payment", paymentRoutes);
+// In-App Digital Wallet routes
+app.use("/api/wallet", walletRoutes);
 
 // ── 404 handler (must come after all routes) ──────────────────────────────
 app.use((req, res) => {

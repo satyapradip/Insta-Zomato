@@ -54,6 +54,7 @@ const envSchema = z.object({
   // ── Razorpay (Phase 8 — Payments) — optional until Phase 8 ───────────────
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 
   // ── SMTP / Email (Phase 12 — Notifications) — optional until Phase 12 ────
   SMTP_HOST: z.string().optional(),
@@ -132,6 +133,7 @@ const config = {
   razorpay: {
     keyId: env.RAZORPAY_KEY_ID,
     keySecret: env.RAZORPAY_KEY_SECRET,
+    webhookSecret: env.RAZORPAY_WEBHOOK_SECRET,
   },
 
   // SMTP — outgoing email (Phase 12)

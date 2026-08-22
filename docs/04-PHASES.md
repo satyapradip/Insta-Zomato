@@ -118,10 +118,10 @@ gantt
   - Customer order history & detailed timeline view.
 - **DoD:** State machine prevents invalid transitions (e.g. cannot mark `DELIVERED` without OTP verification).
 
-#### Phase 8: Razorpay Payments & Wallet System *(Target for Next Session)*
+#### Phase 8: Razorpay Payments & Wallet System *(Completed ✅)*
 - **Deliverables:**
   - Razorpay order creation and HMAC-SHA256 signature verification.
-  - Asynchronous webhook processor with idempotency keys (`payment.captured`, `payment.failed`).
+  - Asynchronous webhook processor with idempotency keys (`payment.captured`, `payment.failed`, `refund.processed`).
   - User in-app wallet for instant cancellation refunds and 1-tap checkout.
 - **DoD:** Paid orders update state automatically upon signature verification and webhook receipt.
 
