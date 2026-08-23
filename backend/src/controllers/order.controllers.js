@@ -18,6 +18,14 @@ const {
   emitToOrder,
   emitToOnlineRiders,
 } = require("../services/socket.services");
+const {
+  notifyOrderPlaced,
+  notifyOrderOutForDelivery,
+  notifyOrderDelivered,
+  notifyRefundCredited,
+} = require("../services/notification.services");
+const { autoDispatchOrder } = require("../services/dispatch.services");
+const logger = require("../config/logger");
 
 function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
   let subtotal = 0;
@@ -259,6 +267,13 @@ const placeOrder = asyncHandler(async (req, res) => {
   emitToUser(userId, "order:created", {
     order: responseData,
   });
+
+  // Multi-Channel Dispatch: In-App notification & HTML email invoice
+  notifyOrderPlaced({
+    order: responseData,
+    user: req.customer || req.user,
+    partner,
+  }).catch((err) => logger.error("notifyOrderPlaced dispatch error:", err));
 
   res.status(201).json(
     new ApiResponse(201, responseData, "Order placed successfully! 🚀"),
@@ -708,6 +723,11 @@ const readyOrderByPartner = asyncHandler(async (req, res) => {
     deliveryAddress: order.deliveryAddress,
   });
 
+  // Automated Dispatch Engine: Match nearest idle riders within 5km & cascade offer
+  autoDispatchOrder(order.id).catch((err) =>
+    logger.error("Auto-dispatch invocation failed:", { error: err.message, orderId: order.id })
+  );
+
   res
     .status(200)
     .json(new ApiResponse(200, formattedResp, "Order marked ready for pickup"));
@@ -1039,6 +1059,20 @@ const outForDeliveryByRider = asyncHandler(async (req, res) => {
     order: formattedResp,
   });
 
+  // Multi-Channel Dispatch: In-App notification & SMS with OTP
+  Promise.all([
+    prisma.user.findUnique({ where: { id: order.userId } }),
+    prisma.deliveryPartner.findUnique({ where: { id: riderId } }),
+  ]).then(([customerUser, riderPartner]) => {
+    if (customerUser) {
+      notifyOrderOutForDelivery({
+        order: { ...updatedOrder, deliveryOtp: "Secure OTP" },
+        user: customerUser,
+        rider: riderPartner,
+      }).catch((err) => logger.error("notifyOrderOutForDelivery error:", err));
+    }
+  }).catch((err) => logger.error("Fetch user/rider for outForDelivery notification failed:", err));
+
   res
     .status(200)
     .json(new ApiResponse(200, formattedResp, "Order marked out for delivery"));
@@ -1121,6 +1155,16 @@ const deliverOrderByRider = asyncHandler(async (req, res) => {
     status: "DELIVERED",
     order: formattedResp,
   });
+
+  // Multi-Channel Dispatch: In-App notification & delivery summary email
+  prisma.user.findUnique({ where: { id: order.userId } }).then((customerUser) => {
+    if (customerUser) {
+      notifyOrderDelivered({
+        order: updatedOrder,
+        user: customerUser,
+      }).catch((err) => logger.error("notifyOrderDelivered error:", err));
+    }
+  }).catch((err) => logger.error("Fetch user for delivered notification failed:", err));
 
   res
     .status(200)
