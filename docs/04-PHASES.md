@@ -163,17 +163,23 @@ gantt
 
 ### 🎯 Milestone 5: Intelligence, Caching & Platform Hardening
 
-#### Phase 11: Search & Discovery Engine
+#### Phase 11: Search & Discovery Engine *(Completed ✅)*
 - **Deliverables:**
-  - Full-text search on dishes, cuisines, and restaurants with MongoDB text indexes.
-  - Dynamic filter builder (Veg, Rating, Price Range, Distance).
-  - Trending search suggestions with Redis autocomplete caching.
+  - Full-text multi-field search across dish names, descriptions, categories, tags, and restaurants (`/api/search`).
+  - Dynamic facet filter builder (`isVeg`, `category`, `minPrice`, `maxPrice`, `minRating`, `maxDistanceKm`).
+  - Search autocomplete suggestions API (`GET /api/search/suggestions`).
+  - Geospatial proximity ranking, dynamic travel ETA, and delivery fee preview calculation.
+  - Curated trending categories, popular keywords, and top-rated dishes (`GET /api/search/trending`).
+- **DoD:** Users can instantly search and filter dishes, restaurants, and cuisines with real-time suggestions and distance-aware ranking.
 
-#### Phase 14: SuperAdmin Moderation & Analytics Portal
+#### Phase 14: SuperAdmin Moderation & Analytics Portal *(Completed ✅)*
 - **Deliverables:**
-  - Platform KPIs dashboard (GMV, active orders, live riders, partner approvals).
-  - Restaurant KYC & FSSAI document verification panel.
-  - Video content moderation and user suspension tools.
+  - Platform KPIs dashboard: Gross Merchandise Value (GMV), active orders, live riders, partner approvals (`GET /api/admin/analytics`).
+  - Restaurant KYC & FSSAI document verification and approval panel (`/api/admin/partners`).
+  - Delivery partner fleet onboarding approval and verification (`/api/admin/riders`).
+  - Customer account suspension & ban enforcement (`PATCH /api/admin/users/:id/ban`).
+  - Video content moderation and take-down tools (`PATCH /api/admin/reels/:id/availability`).
+- **DoD:** Administrators can monitor platform revenue and health, verify partners, onboard riders, and moderate content with strict role-based access control.
 
 #### Phase 15 & 16: Redis Caching & Database Optimization
 - **Deliverables:**

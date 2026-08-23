@@ -17,6 +17,8 @@ const walletRoutes = require("./routes/wallet.routes");
 const deliveryRoutes = require("./routes/delivery.routes");
 const locationRoutes = require("./routes/location.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const searchRoutes = require("./routes/search.routes");
+const adminRoutes = require("./routes/admin.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -125,6 +127,10 @@ app.use("/api/delivery", deliveryRoutes);
 app.use("/api/location", locationRoutes);
 // Multi-Channel Notifications & Alerts
 app.use("/api/notifications", notificationRoutes);
+// Universal Search & Discovery Engine
+app.use("/api/search", searchRoutes);
+// SuperAdmin Moderation & Analytics Portal
+app.use("/api/admin", adminRoutes);
 
 // ── 404 handler (must come after all routes) ──────────────────────────────
 app.use((req, res) => {
