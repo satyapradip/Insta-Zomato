@@ -1,0 +1,184 @@
+@import "tailwindcss";
+
+@layer base {
+  /* ── Dishly Crisp Professional Light Theme ── */
+  :root,
+  .light {
+    --background: #f4f5f8;
+    --foreground: #18181b;
+
+    --card: #ffffff;
+    --card-foreground: #18181b;
+    --card-elevated: #f9fafb;
+    --card-hover: #f3f4f6;
+
+    --popover: #ffffff;
+    --popover-foreground: #18181b;
+
+    /* Dishly Vibrant Red Primary */
+    --primary: #dc2626;
+    --primary-foreground: #ffffff;
+    --primary-hover: #b91c1c;
+    --primary-light: #fef2f2;
+    --primary-border: #fecaca;
+
+    --secondary: #ff5722;
+    --secondary-foreground: #ffffff;
+
+    --accent-black: #18181b;
+    --accent-black-foreground: #ffffff;
+
+    --accent-gold: #f59e0b;
+    --accent-gold-foreground: #ffffff;
+
+    --veg-green: #10b981;
+    --veg-green-bg: rgba(16, 185, 129, 0.1);
+
+    --nonveg-red: #ef4444;
+    --nonveg-red-bg: rgba(239, 68, 68, 0.1);
+
+    --muted: #71717a;
+    --muted-light: #a1a1aa;
+
+    --border: #e4e4e7;
+    --border-hover: #d4d4d8;
+    --glass-bg: rgba(255, 255, 255, 0.95);
+
+    --shadow-card: 0 10px 30px -5px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+    --shadow-elevated: 0 20px 40px -10px rgba(0, 0, 0, 0.08);
+
+    --radius-sm: 0.5rem;
+    --radius-md: 0.875rem;
+    --radius-lg: 1.25rem;
+    --radius-xl: 1.75rem;
+    --radius-full: 9999px;
+  }
+
+  /* ── Obsidian Dark Gourmet Theme ── */
+  .dark {
+    --background: #080a0f;
+    --foreground: #fafafa;
+
+    --card: #12141d;
+    --card-foreground: #fafafa;
+    --card-elevated: #1c1f2c;
+    --card-hover: #222636;
+
+    --popover: #12141d;
+    --popover-foreground: #fafafa;
+
+    --primary: #ff385c;
+    --primary-foreground: #ffffff;
+    --primary-hover: #e0284c;
+    --primary-light: rgba(255, 56, 92, 0.12);
+    --primary-border: rgba(255, 56, 92, 0.3);
+
+    --secondary: #ff6433;
+    --secondary-foreground: #ffffff;
+
+    --accent-black: #ffffff;
+    --accent-black-foreground: #080a0f;
+
+    --accent-gold: #ffa116;
+    --accent-gold-foreground: #080a0f;
+
+    --veg-green: #10b981;
+    --veg-green-bg: rgba(16, 185, 129, 0.15);
+
+    --nonveg-red: #ef4444;
+    --nonveg-red-bg: rgba(239, 68, 68, 0.15);
+
+    --muted: #94a3b8;
+    --muted-light: #64748b;
+
+    --border: rgba(255, 255, 255, 0.09);
+    --border-hover: rgba(255, 255, 255, 0.18);
+    --glass-bg: rgba(18, 20, 29, 0.85);
+
+    --shadow-card: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    --shadow-elevated: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  }
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-elevated: var(--card-elevated);
+  --color-card-hover: var(--card-hover);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-primary-border: var(--primary-border);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent-black: var(--accent-black);
+  --color-accent-gold: var(--accent-gold);
+  --color-veg-green: var(--veg-green);
+  --color-nonveg-red: var(--nonveg-red);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-border-hover: var(--border-hover);
+  --color-glass-bg: var(--glass-bg);
+}
+
+/* Custom Scroll & Reel Snap Utilities */
+.snap-y-mandatory {
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glassmorphism & Panel Classes */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+.glass-panel-elevated {
+  background: var(--card-elevated);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+}
+
+/* Dishly Style Floating Card */
+.dishly-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1.75rem;
+  box-shadow: var(--shadow-card);
+}
+
+/* Ambient Glow Halos */
+.ambient-glow-coral {
+  box-shadow: 0 0 35px rgba(255, 56, 92, 0.3);
+}
+
+.ambient-glow-gold {
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.25);
+}
+
+/* Base Body Styles */
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Inter", sans-serif;
+  overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
