@@ -1,277 +1,280 @@
 # 🎨 UI/UX & Design System — Insta-Zomato
 
 > **Document:** 03-DESIGN.md  
-> **Design Philosophy:** Tri-Hybrid Visual E-Commerce (**Zomato** Food Delivery + **Instagram** Reels Immersion + **Flipkart** High-Conversion E-Commerce)  
-> **Component Library:** **shadcn/ui** (Radix UI Primitives + Tailwind CSS + Lucide Icons + Framer Motion)  
-> **Frontend Framework:** Next.js 15 (App Router / TypeScript / Tailwind CSS)  
+> **Status:** Approved / Master Reference  
+> **Version:** 2.0.0  
+> **Design Archetype:** Tri-Hybrid Visual E-Commerce (**Zomato** Food Logistics + **Instagram** Reels Immersion + **Flipkart** High-Conversion E-Commerce)  
+> **Inspiration Influences:** **Flavoro** (Gourmet Luxury & Micro-interactions), **Dishly** (Widescreen PC Ordering), **Chili POS** (Kitchen & Partner Studio), **Shohidul UIX** (Mobile Delivery Cards & Fluid Navigation)  
+> **Component Stack:** **shadcn/ui** (Radix UI Primitives) + **Tailwind CSS v4** + **Lucide Icons** + **Framer Motion** + **Vaul Drawers**  
+> **Frontend Framework:** Next.js 16 (App Router / TypeScript)  
 
 ---
 
-## 1. Design DNA: The Tri-Hybrid Experience
+## 1. Design DNA: The Tri-Hybrid Visual Commerce Engine
 
-Insta-Zomato converges the 3 most successful consumer app interfaces in modern commerce:
+Insta-Zomato merges short-form video discovery with real-time food delivery and high-converting e-commerce flows across **Mobile (375px–430px)** and **PC / Desktop (1280px–1920px+)**:
 
 ```mermaid
-graph TD
-    subgraph Instagram Reels
-        A[Full-Screen 9:16 Vertical Video]
-        B[Double-Tap Heart Particle Animation]
+flowchart TD
+    subgraph Discovery [1. Instagram Reels & Flavoro Discovery]
+        A[Full-Screen 9:16 Vertical Video Stream]
+        B[Double-Tap Heart Particle Burst]
         C[Right-Side Floating Social Action Rail]
-        D[Interactive Comments & Share Drawer]
+        D[Ambient Color Glow & Sound Disc Toggle]
     end
 
-    subgraph Zomato Food Delivery
+    subgraph Logistics [2. Zomato Real-Time Logistics]
         E[Authentic Veg/Non-Veg Badges]
         F[Live Kitchen Prep & GPS Rider Map HUD]
-        G[Restaurant Profile, Cuisine & Rating Badges]
-        H[Delivery Instructions - Leave at door]
+        G[4-Digit Doorstep Delivery OTP Card]
+        H[Delivery Instructions & Single-Restaurant Lock]
     end
 
-    subgraph Flipkart High-Conversion E-Commerce
-        I[Portion & Add-on Customization Sheets]
-        J[Lightning Deals, Countdown & % OFF Badges]
-        K[Sticky Dual Bottom Bar: Quick Add & Buy Now]
-        L[Trust Badges & SuperCoins / Loyalty Rewards]
+    subgraph Commerce [3. Flipkart & Dishly Conversion Engine]
+        I[Portion & Add-on Customizer Drawers]
+        J[Dual Sticky CTAs: + Add to Cart & ⚡ Buy Now]
+        K[Desktop 3-Column Spotlight Ordering & Persistent Cart]
+        L[1-Tap Slide-to-Pay & Instant Coupon Engine]
     end
 
-    A & E & I --> HUD[Insta-Zomato Unified Experience]
-    B & F & J --> HUD
-    C & G & K --> HUD
-    D & H & L --> HUD
+    subgraph Operations [4. Chili POS & Kitchen Studio]
+        M[Live Kanban Orders Queue with Audio Alert]
+        N[Reel Video Upload & Tag Studio]
+        O[Rider Proximity Dispatch Radar]
+    end
+
+    Discovery & Logistics & Commerce & Operations --> UNIFIED[Insta-Zomato Unified Responsive Platform]
 ```
-
-1. **Instagram Video Dominance:** 100% immersive vertical video player with touch-swipe gestures, sound disc toggle, and ambient edge glow.
-2. **Zomato Culinary Trust & Delivery Mastery:** Clear dietary indicators (Veg/Non-Veg icons), restaurant distance badges (`2.1 km • 25 mins`), live tracking map with animated delivery motorbike icon, and delivery instruction pills.
-3. **Flipkart E-Commerce Conversion Engine:** Sticky bottom dual-action bar (`+ Add to Cart` / `⚡ Buy Now`), bottom-sheet modifier customizers (Size, Extra Cheese, Spice Level), flash deal banners (`🔥 40% OFF`), and clear price breakdown accordions.
-4. **shadcn/ui Modern Component Architecture:** Built on accessible Radix primitives, styled with Tailwind utility classes, enhanced with Vaul drawers, Sonner toasts, and Lucide icons.
 
 ---
 
-## 2. Color Palette & Design Tokens
+## 2. Design System Tokens & Color Palette
 
-### 2.1 Theme Palette (Dark Mode First + Light Theme Support)
+Insta-Zomato features a **Dual-Theme Color Engine** with an interactive top-bar Theme Toggle:
+- **☀️ Light Mode (Dishly Crisp Professional):** *Floating pure white cards, crisp zinc typography, and scarlet highlights* — inspired by the Dishly desktop ordering UI.
+- **🌑 Dark Mode (Obsidian Dark Gourmet):** *Obsidian Navy Glass, high-contrast food video playback, and glowing ambient halos*.
+
+#### ☀️ Dishly Crisp Professional Light Theme
+- **Canvas / App Background:** `#F4F5F8` (Crisp Soft Gray)
+- **Floating Card Surface:** `#FFFFFF` (Pure Crisp White)
+- **Elevated / Secondary Card:** `#F9FAFB`
+- **Card Border:** `#E4E4E7` / `#E2E8F0` (Fine Crisp Stroke)
+- **Primary Vibrant Accent:** `#DC2626` / `#E11D48` (Dishly Scarlet Red)
+- **Primary Pill Background:** `#FEF2F2` (Soft Blush)
+- **Black Accent (Active Filter Pills & CTA Buttons):** `#18181B` (Zinc 900)
+- **Text Headings:** `#18181B` (High Contrast Black)
+- **Text Body / Muted:** `#71717A` (Muted Slate)
+- **Elevation Shadows:** `0 10px 30px -5px rgba(0, 0, 0, 0.05)`
+
+#### 🌑 Obsidian Dark Gourmet Theme
+- **Background Canvas:** `#080A0F` (Pitch Dark Charcoal)
+- **Card Surface:** `#12141D` (Obsidian Navy Glass)
+- **Card Elevated:** `#1C1F2C` (Floating Glass Shelf)
+- **Border / Divider:** `rgba(255, 255, 255, 0.08)`
+- **Primary Brand Coral:** `#FF385C` (Zomato Vibrant Coral)
+- **Secondary Sizzle Orange:** `#FF6433` (Warm Sizzle Glow)
+- **Pure Veg Indicator:** `#10B981` (Emerald Green)
+- **Non-Veg Indicator:** `#EF4444` (Ruby Red)
+- **Text Primary:** `#FFFFFF`
+- **Text Muted:** `#94A3B8` (Slate Muted)
+
+### 2.1 CSS Variables & Design Tokens
 
 ```css
 @layer base {
-  :root {
-    /* ── Surface Tokens ── */
-    --background: 220 20% 6%;         /* Deep Obsidian #0D0F12 */
-    --foreground: 0 0% 98%;           /* Pure White #FAFAFA */
-    --card: 220 18% 10%;              /* Surface Card #14171E */
+  /* ── Obsidian Dark Gourmet Theme (Default) ── */
+  :root,
+  .dark {
+    --background: 224 28% 5%;          /* Deep Obsidian #080A0F */
+    --foreground: 0 0% 98%;            /* Crystal White #FAFAFA */
+    
+    --card: 224 20% 9%;                /* Charcoal Glass #12141D */
     --card-foreground: 0 0% 98%;
-    --popover: 220 18% 10%;
+    --card-elevated: 224 18% 14%;       /* Hover / Active Surface #1C1F2C */
+    
+    --popover: 224 20% 9%;
     --popover-foreground: 0 0% 98%;
 
-    /* ── Brand & Action Accents ── */
-    --primary: 348 100% 61%;          /* Zomato/Insta Crimson Coral #FF385C */
+    /* ── Brand Primary & Accents ── */
+    --primary: 348 100% 61%;           /* Sizzling Coral #FF385C */
     --primary-foreground: 0 0% 100%;
-    --secondary: 36 100% 55%;         /* Saffron / Flipkart Gold #FFA41B */
-    --secondary-foreground: 220 20% 6%;
-    --accent: 217 91% 60%;            /* Flipkart Royal Blue #2874F0 */
-    --accent-foreground: 0 0% 100%;
+    --primary-hover: 348 100% 54%;
+    
+    --secondary: 16 100% 60%;          /* Ember Flame / Orange #FF6433 */
+    --secondary-foreground: 0 0% 100%;
+    
+    --accent-gold: 38 100% 54%;        /* Amber Honey / Gold #FFA116 */
+    --accent-gold-foreground: 224 28% 5%;
 
-    /* ── Dietary & Status Hues ── */
-    --veg: 142 76% 45%;               /* Pure Veg Emerald #10B981 */
-    --nonveg: 0 84% 60%;              /* Non-Veg Crimson #EF4444 */
-    --egg: 45 93% 47%;                /* Contains Egg #EAB308 */
-    --bestseller: 270 75% 60%;        /* Bestseller Purple #8B5CF6 */
+    /* ── Dietary Badges (Standardized) ── */
+    --veg: 142 76% 45%;                /* Emerald Pure-Veg #10B981 */
+    --veg-bg: 142 76% 45% / 0.12;
+    --nonveg: 0 84% 60%;               /* Crimson Non-Veg #EF4444 */
+    --nonveg-bg: 0 84% 60% / 0.12;
+    --egg: 45 93% 47%;                 /* Egg Yellow #EAB308 */
 
-    /* ── Glassmorphism & UI Accents ── */
-    --glass-bg: rgba(20, 23, 30, 0.75);
-    --glass-border: rgba(255, 255, 255, 0.12);
-    --glass-highlight: rgba(255, 255, 255, 0.05);
-    --shadow-reel: 0 20px 50px rgba(0, 0, 0, 0.7);
-    --shadow-glow: 0 0 25px rgba(255, 56, 92, 0.35);
+    /* ── Glassmorphism & Borders ── */
+    --glass-bg: rgba(18, 20, 29, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.09);
+    --glass-highlight: rgba(255, 255, 255, 0.04);
+    --glass-blur: blur(16px);
+    
+    /* ── Shadows & Ambient Glow ── */
+    --shadow-reel: 0 24px 60px -12px rgba(0, 0, 0, 0.85);
+    --shadow-glow-coral: 0 0 35px rgba(255, 56, 92, 0.35);
+    --shadow-glow-amber: 0 0 30px rgba(255, 161, 22, 0.28);
+    
+    /* ── Geometry ── */
+    --radius-sm: 0.5rem;   /* 8px */
+    --radius-md: 0.875rem; /* 14px */
+    --radius-lg: 1.25rem;  /* 20px */
+    --radius-full: 9999px; /* Pill */
+  }
 
-    /* ── UI Radius ── */
-    --radius: 1rem;
+  /* ── Warm Organic Flavoro Light Theme ── */
+  .light {
+    --background: 40 33% 98%;          /* Warm Vanilla Cream #FAF8F5 */
+    --foreground: 120 10% 12%;         /* Deep Forest Slate #1C211C */
+    
+    --card: 0 0% 100%;                 /* Pure White #FFFFFF */
+    --card-foreground: 120 10% 12%;
+    --card-elevated: 40 25% 94%;       /* Warm Oat #F2ECE4 */
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 10% 12%;
+
+    /* ── Brand Accents (Flavoro Gourmet) ── */
+    --primary: 94 35% 26%;             /* Artisan Olive #3D5A2B */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 94 35% 20%;
+    
+    --secondary: 38 60% 48%;           /* Saffron Gold #C5A869 */
+    --secondary-foreground: 0 0% 100%;
+    
+    --accent-gold: 38 90% 50%;
+    --accent-gold-foreground: 0 0% 100%;
+
+    --veg: 142 70% 36%;
+    --veg-bg: 142 70% 36% / 0.10;
+    --nonveg: 0 78% 54%;
+    --nonveg-bg: 0 78% 54% / 0.10;
+
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-highlight: rgba(0, 0, 0, 0.02);
+    --glass-blur: blur(12px);
+
+    --shadow-reel: 0 20px 40px -10px rgba(61, 90, 43, 0.12);
+    --shadow-glow-coral: 0 8px 24px rgba(61, 90, 43, 0.15);
   }
 }
 ```
 
 ---
 
-## 3. shadcn/ui Component Mapping
+## 3. Typography & Hierarchy
 
-Every interactive screen in Insta-Zomato is composed using **shadcn/ui** components for maximum polish, accessibility, and consistency:
+- **Display Headline Font:** `Outfit`, sans-serif (Bold, energetic, appetite-inducing for titles, prices, and banners).
+- **Luxury Editorial Font:** `Playfair Display`, serif (Optional elegant display for gourmet collections & restaurant branding).
+- **Body & UI Font:** `Plus Jakarta Sans`, `Inter`, sans-serif (Crisp legibility across 4K displays and compact mobile screens).
 
-| UI Feature Area | shadcn/ui Component | Purpose & Customization |
+### Typography Scale Matrix
+
+| Element | Size | Weight | Line Height | Tracking | Usage |
+|---|---|---|---|---|---|
+| **Display 1** | 36px / 2.25rem | 800 (ExtraBold) | 1.15 | -0.03em | Splash Headlines, Hero Banners |
+| **Headline 2** | 24px / 1.5rem | 700 (Bold) | 1.25 | -0.02em | Dish Titles, Section Headers |
+| **Headline 3** | 18px / 1.125rem | 600 (SemiBold) | 1.35 | -0.01em | Modal Headers, Restaurant Names |
+| **Body Large** | 15px / 0.9375rem | 500 (Medium) | 1.5 | 0 | Descriptions, Customizer Options |
+| **Body Regular**| 13px / 0.8125rem | 400 (Regular) | 1.45 | 0 | Subtitles, Add-on Descriptions |
+| **Caption / Pill** | 11px / 0.6875rem| 700 (Bold) | 1.2 | +0.02em | Badges, ETA Pills, Veg/Non-Veg |
+
+---
+
+## 4. Responsive Viewport Grid Architecture
+
+### 4.1 Responsive Breakpoints
+
+| Viewport Category | Screen Width | Primary Layout Structure |
 |---|---|---|
-| **Video Overlay Actions** | `Button`, `Badge`, `Avatar`, `Tooltip` | Action rail (Like, Save, Share, Sound), Veg/Non-veg emblem, Restaurant badge. |
-| **Comments Drawer** | `Sheet` / `Drawer` (Vaul) | Swipeable bottom sheet displaying 2-level comment threads with avatar pills. |
-| **Customization & Add-ons** | `Dialog`, `RadioGroup`, `Checkbox` | Flipkart-style portion sizing (Regular/Large), extra toppings, spice level selector. |
-| **Quick-Cart & Checkout** | `Sheet`, `Separator`, `ScrollArea` | Slide-out cart with item steppers, delivery instructions, and coupon input. |
-| **Food Category Filter** | `Carousel` (Embla), `Tabs` | Horizontal swipeable story circles & category pills (Pizza, Biryani, Burgers). |
-| **Live Order Tracking** | `Progress`, `Card`, `Badge` | Step-by-step cooking & delivery status bar, OTP code display card. |
-| **Search & Discovery** | `Command`, `Popover` | Instant food & restaurant auto-complete search box with recent history. |
-| **Interactive Map HUD** | `HoverCard`, `Badge` | Delivery partner marker card with live ETA, vehicle number, and call button. |
-| **Notifications & Toasts** | `Sonner` | High-polish animated toast alerts (`Item added to cart`, `Coupon CRAVE50 applied`). |
-| **Price & Bill Accordion** | `Accordion` | Expandable itemized bill (Subtotal, GST, Delivery Partner Tip, Platform Fee). |
-| **Loading Skeletons** | `Skeleton` | Shimmer placeholders for video reels, dish cards, and order histories. |
-
----
-
-## 4. Screen Wireframe Specifications
-
-### 4.1 Immersive Reels Viewport (Instagram + Zomato + Flipkart HUD)
+| **Mobile Portrait** | `375px – 430px` | 100dvh Full-screen Reels + Floating Action Rail + Bottom Drawers + 5-Tab Bottom Nav |
+| **Tablet / Foldable** | `768px – 1024px` | 2-Column Split: 9:16 Video Player on Left + Live Modifier / Cart on Right |
+| **Desktop / Laptop** | `1280px – 1536px` | 3-Column Dishly Layout: Left Nav (240px) + Center Video Stage (Flex 1) + Right Cart (380px) |
+| **Ultra-Wide Widescreen** | `1920px+` | Max-width `1600px` container with ambient backlight halo projection |
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│ [📍 Indiranagar, Bangalore ▾]   [⚡ Flash Deal 30m left]   [🛒 (2) ₹448] │ <- Top Navigation
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│                                                     [ ❤️ 14.8k ]        │
-│                                                     [ 💬 421   ]        │ <- Instagram-Style
-│                   FULL-SCREEN                       [ 🔖 Save  ]        │    Right Action Rail
-│                 VERTICAL (9:16)                     [ ↗️ Share ]        │
-│                 FOOD VIDEO REEL                     [ 🔊 Sound ]        │
-│                                                     [ 💿 Kitchen Mix ]  │
-│                                                                        │
-│ ┌────────────────────────────────────────────────────────────────────┐ │
-│ │ [🟢 PURE VEG]  [⭐ 4.9 (1.2k)]  [🔥 Bestseller - 15% OFF]          │ │ <- Zomato + Flipkart
-│ │ Truffle Butter Paneer Tikka (6 Pcs)                                │ │    Dish Info Glass Box
-│ │ ₹320  ̶₹̶3̶8̶0̶  • ⏱️ 20 mins prep • 📍 Spice Villa (1.8 km away)       │ │
-│ │ "Marinated in clay oven with fresh malai & black truffle oil"      │ │
-│ └────────────────────────────────────────────────────────────────────┘ │
-│                                                                        │
-│ ┌──────────────────────────────────┐  ┌──────────────────────────────┐ │
-│ │  🛒 + Add to Cart (₹320)         │  │  ⚡ Buy Now (1-Tap Checkout)  │ │ <- Flipkart Sticky Bar
-│ └──────────────────────────────────┘  └──────────────────────────────┘ │
-├────────────────────────────────────────────────────────────────────────┤
-│   [🏠 Reels]     [🔍 Explore]     [🏷️ Offers]     [📦 Orders]     [👤 Me]  │ <- Bottom Navigation
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-#### Detailed Element Specifications:
-1. **Top Glass Header (`shadcn/ui NavigationMenu + Badge`):**
-   - Location Selector dropdown: Displays current delivery address with micro-distance radius.
-   - Flash Deal Countdown Pill: Animated badge showing live countdown timer for flash discounts.
-   - Quick Cart Button: Displays real-time item count badge and subtotal pill.
-2. **Right Action Rail (`shadcn/ui Button + Tooltip`):**
-   - **Like Button:** Animated heart with double-tap burst effect and formatted count (`14.8k`).
-   - **Comment Button:** Opens the `shadcn/ui Sheet` comment drawer.
-   - **Save / Bookmark:** Saves reel to user's "Food Wishlist".
-   - **Share Button:** Native Web Share API trigger with link copy.
-   - **Sound Toggle & Music Disc:** Rotating disc animation reflecting restaurant audio.
-3. **Bottom Dish Capsule (`shadcn/ui Card + Badge`):**
-   - Dietary Badge: Zomato-standard Veg green dot in square or Non-Veg red triangle in square.
-   - Price Display: Golden saffron price with strikethrough MRP and savings badge (`Save ₹60`).
-   - Restaurant Info: Clickable handle (`@SpiceVilla`) opening the restaurant menu profile.
-4. **Dual Conversion CTAs (`shadcn/ui Button`):**
-   - **`+ Add to Cart` (Left 50%):** Adds item to cart and slides in a quick modifier drawer if the dish has portions/add-ons.
-   - **`⚡ Buy Now` (Right 50%):** Skips to the 1-Tap Slide-to-Pay checkout sheet.
-
----
-
-### 4.2 Flipkart-Style Dish Customization Drawer (`shadcn/ui Drawer + RadioGroup + Checkbox`)
-
-When a user taps `+ Add to Cart` on a customizable dish (e.g., Pizza, Biryani, Burgers):
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ ──── [Drag Handle] ─────────────────────────────────────────────────── │
-│ Truffle Butter Paneer Tikka — Customise Your Order                     │
-│ ────────────────────────────────────────────────────────────────────── │
-│                                                                        │
-│ 1. SELECT PORTION SIZE (Choose 1) *Required                            │
-│    (o) Half (4 Pcs)                                         ₹220.00    │
-│    ( ) Full (8 Pcs) - Most Popular                          ₹380.00    │
-│                                                                        │
-│ 2. CHOOSE SPICE LEVEL (Choose 1)                                       │
-│    ( ) Mild Butter    (o) Delhi Masala 🔥    ( ) Fire Chili 🌶️🌶️      │
-│                                                                        │
-│ 3. EXTRA ADD-ONS (Optional)                                            │
-│    [x] Extra Mint Chutney & Pickled Onions                  +₹ 20.00   │
-│    [ ] Garlic Butter Naan (1 pc)                            +₹ 45.00   │
-│    [ ] Extra Melted Amul Cheese Dip                         +₹ 50.00   │
-│                                                                        │
-│ ────────────────────────────────────────────────────────────────────── │
-│ Total: ₹400.00                         [  🛒 Add Item to Cart  ]       │
-└────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 DESKTOP 3-COLUMN GRID MATRIX                              │
+├────────────────────────────┬───────────────────────────────┬──────────────────────────────┤
+│  COLUMN 1: NAVIGATION      │  COLUMN 2: VIDEO STAGE        │  COLUMN 3: E-COMMERCE PANEL  │
+│  Width: 240px - 280px      │  Width: Flex 1 (Centered 9:16)│  Width: 360px - 420px        │
+│                            │                               │                              │
+│  • Brand Logo & Role Pill  │  • Top Location & Search Bar  │  • Dish Spotlight / Video Meta│
+│  • Primary Nav (Feed,      │  • 9:16 Phone-Aspect Frame    │  • Portion Size (RadioGroup) │
+│    Explore, Orders, Saved) │    (Max 440px × 760px)        │  • Spice Level & Add-ons     │
+│  • Category Tree with      │  • Dynamic Ambient Backlight  │  • Quantity Stepper (- 1 +)  │
+│    item count badges       │  • Keyboard shortcuts (↑/↓,M) │  • ⚡ Buy Now & Add to Cart │
+│  • User Profile & Balance  │  • Double-tap heart burst     │  • Sticky Cart & Bill Accord.│
+└────────────────────────────┴───────────────────────────────┴──────────────────────────────┘
 ```
 
 ---
 
-### 4.3 Zomato-Style Quick Cart & Slide-to-Pay Drawer (`shadcn/ui Sheet + Accordion`)
+## 5. Master Component Library Mapping (shadcn/ui + Custom Primitives)
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ ──── [Drag Handle] ─────────────────────────────────────────────────── │
-│ 🛒 Your Cravings from "Spice Villa Restaurant" (1.8 km)                │
-│ ────────────────────────────────────────────────────────────────────── │
-│ 1x Truffle Butter Paneer Tikka (Full)                         ₹380.00  │
-│    • Delhi Masala • Extra Mint Chutney                                 │
-│    [ - ]  1  [ + ]                                                     │
-│ 1x Garlic Butter Naan                                         ₹ 45.00  │
-│    [ - ]  2  [ + ]                                                     │
-│                                                                        │
-│ 🎟️ [ CRAVE50 - ₹50 OFF Applied! ]                    [Remove]          │
-│                                                                        │
-│ 🛵 Delivery Instructions:                                              │
-│ [ 🚪 Leave at door ]   [ 🔕 Don't ring bell ]   [ 📞 Call upon arrival ]│
-│                                                                        │
-│ 📍 Delivery Address: Flat 402, Sunshine Heights (Home)      [Change]   │
-│                                                                        │
-│ ▾ Detailed Bill Breakdown (Click to expand)                            │
-│   • Item Total: ₹470.00                                                │
-│   • Delivery Partner Fee: ₹30.00                                       │
-│   • Platform Fee: ₹5.00                                                │
-│   • Taxes & GST (5%): ₹23.50                                           │
-│   • Coupon Discount: -₹50.00                                           │
-│   • Grand Total: ₹478.50                                               │
-│                                                                        │
-│ [  💳 Slide to Pay ₹478.50 via UPI / Razorpay  ==================>  ]  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 4.4 Live Order Tracking & Driver HUD (Zomato Map + Flipkart Milestones)
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ [← Back to Reels]         Order #IZ-90214           [🎧 Support]       │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│                   INTERACTIVE LIVE LEAFLET/MAPBOX MAP                  │
-│                     (Smooth Dark Map Tile Layer)                       │
-│                                                                        │
-│              [ 🏠 Your Home ]                                          │
-│                     ▲                                                  │
-│                     │ (Pulsing Animated Route)                         │
-│              [ 🛵 Vikram (Rider) ] -> Moving live                      │
-│                     ▲                                                  │
-│                     │                                                  │
-│              [ 🍳 Spice Villa Kitchen ]                                │
-│                                                                        │
-├────────────────────────────────────────────────────────────────────────┤
-│ 🟢 ON THE WAY  •  Arriving in 12 mins (ETA: 02:15 PM)                  │
-│ [████████████████████████░░░░░░] 75% Completed                         │
-│                                                                        │
-│ 🔑 Share this OTP with Rider upon delivery:   [  8  3  2  1  ]          │
-│                                                                        │
-│ 🛵 Delivery Partner: Vikram Singh (⭐ 4.9 • 1,420 deliveries)          │
-│    [ 📞 Call Vikram ]        [ 💬 Message ]       [ 💵 Tip ₹30 ]       │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 5. Micro-Interactions & Motion Choreography
-
-All animations are implemented using **Framer Motion** and **Tailwind Animate**:
+Every component is built on accessible **Radix UI** primitives styled with **Tailwind CSS**:
 
 ```mermaid
 graph LR
-    A[Double Tap Video] -->|Framer Motion Scale & Particle Spring| B[Bursting Glowing Heart]
-    C[Click Quick Add] -->|Bézier Curve Flight| D[Food Thumbnail Flies into Top Cart Pill]
-    E[Slide to Pay Gesture] -->|Drag X constraint with Haptic Feedback| F[Launch Razorpay Modal]
-    G[Rider GPS Ping] -->|Leaflet Marker Tweening (3000ms)| H[Smooth Motorbike Glide]
-    I[Coupon Apply] -->|Confetti Canvas Explosion| J[Green Savings Pill Glow]
+    subgraph Primitives [Radix Primitives & shadcn/ui]
+        R1[Dialog / Sheet / Drawer]
+        R2[RadioGroup / Checkbox / Switch]
+        R3[Progress / Slider / Tabs]
+        R4[Command / Popover / Tooltip]
+    end
+
+    subgraph CustomComponents [Insta-Zomato Custom Molecules]
+        C1[ReelVideoPlayer with HLS Streaming]
+        C2[SocialActionRail with Spring Heart]
+        C3[DishModifierDrawer with Price Recalc]
+        C4[SingleRestaurantCartLock Dialog]
+        C5[LiveOrderTrackingMap HUD]
+        C6[PartnerIncomingOrders Kanban]
+    end
+
+    Primitives --> CustomComponents
 ```
 
-### Motion Presets:
-1. **Drawer Spring:** `{ type: "spring", damping: 28, stiffness: 320 }`
-2. **Heart Pulse Burst:** `{ scale: [0, 1.4, 1], opacity: [0, 1, 0], transition: { duration: 0.8 } }`
-3. **Cart Bounce:** `{ scale: [1, 1.25, 1], transition: { duration: 0.3 } }`
-4. **Shimmer Card Loading:** CSS continuous linear gradient sweep across skeleton frames.
+| Component Name | Source Primitive | Features & Interaction Behavior |
+|---|---|---|
+| **`<ReelPlayer />`** | Native `<video>` + Framer Motion | Snap-scrolling, pre-buffering next 2 videos, intersection observer autoplay/pause, ambient glow canvas. |
+| **`<ActionRail />`** | `Button` + `Tooltip` | Optimistic like with particle explosion, comment count trigger, save bookmark, audio vinyl rotating animation. |
+| **`<DietaryBadge />`** | Custom SVG + `Badge` | Standard green square with green dot for Pure Veg; red square with red triangle for Non-Veg. |
+| **`<ModifierDrawer />`** | `vaul` (`Drawer`) on Mobile / `Card` on PC | Portion selector, spice pill group, extra add-ons checkboxes, live price calculation badge. |
+| **`<CartConflictDialog />`** | `AlertDialog` | Single-restaurant lock trigger: *"Replace cart items with [Restaurant B]?"* with Cancel or Force Replace. |
+| **`<SlideToPay />`** | Framer Motion `motion.div` | Swipe-to-confirm checkout slider with haptic feedback, triggers Razorpay modal on completion. |
+| **`<LiveOrderMapHUD />`** | Leaflet / Mapbox GL + `Progress` | Dark vector tiles, pulsing restaurant marker, real-time rider scooter marker glide, 4-stage order stepper. |
+| **`<DeliveryOTPCard />`** | `Card` + Glowing border | 4-digit high-visibility security PIN (`OTP: 8392`) with copy button. |
+| **`<PartnerPOSKanban />`** | `Tabs` + `Card` + `Audio` | Incoming orders queue (`New` $\to$ `Preparing` $\to$ `Ready`), countdown timers, instant sound chime on socket event. |
+
+---
+
+## 6. Micro-Interactions & Animation Specs
+
+1. **Double-Tap Like Explosion:**
+   - Double tapping anywhere on video spawns an animated heart at `(clientX, clientY)`.
+   - Framer Motion animation: `scale: [0, 1.4, 1]`, `opacity: [0, 1, 0]`, duration `0.85s`, ease `easeInOut`.
+2. **Fly-to-Cart Animation:**
+   - When tapping `+ Add to Cart`, a 40px circular food thumbnail follows a quadratic Bézier curve to the top/bottom Cart Icon.
+3. **Ambient Color Backlight Halo (Desktop Web):**
+   - Video frames are sampled via an off-screen `<canvas>` to generate a 3-stop dynamic radial gradient:
+   - `background: radial-gradient(circle at center, rgba(dominantColor, 0.45) 0%, transparent 70%)`.
+4. **Keyboard Navigation Matrix (PC):**
+   - `ArrowDown` / `J`: Next Food Reel
+   - `ArrowUp` / `K`: Previous Food Reel
+   - `Space`: Play / Pause Toggle
+   - `M`: Audio Mute / Unmute
+   - `L`: Like Reel
+   - `C`: Open Comments Sheet
+   - `A`: Add to Cart
+   - `B`: Buy Now (Open Checkout)

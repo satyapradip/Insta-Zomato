@@ -37,7 +37,8 @@ e:/Insta_Zomato/
 │   ├── 05-RULES.md
 │   ├── 06-MEMORY.md
 │   ├── 07-TASK-CHUNKS.md
-│   └── 08-DEPLOYMENT.md
+│   ├── 08-DEPLOYMENT.md
+│   └── 09-PAGES.md
 └── uploads/                  # Temporary staging for local file chunks
 ```
 

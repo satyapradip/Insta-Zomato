@@ -143,19 +143,21 @@ gantt
   - Address geocoding, reverse geocoding, and places autocomplete.
   - Nearby restaurant discovery query with distance in km and ETA.
 
-#### Phase 12: Multi-Channel Notification Engine
+#### Phase 12: Multi-Channel Notification Engine *(Completed ✅)*
 - **Deliverables:**
-  - In-app notification center with read/unread tracking.
-  - Web Push / Firebase Cloud Messaging (FCM) push notifications.
-  - Nodemailer HTML email templates for order receipts and password resets.
-  - Twilio / SMS service for delivery OTP delivery.
+  - In-app notification center with read/unread tracking and pagination (`/api/notifications`).
+  - Real-time Socket.io instant push (`notification:new` events).
+  - Nodemailer responsive HTML email invoice and delivery confirmation templates.
+  - SMS & Doorstep Delivery OTP dispatch service interface.
+- **DoD:** Notifications persist reliably in PostgreSQL, broadcast instantaneously across WebSockets, and dispatch async emails/SMS.
 
-#### Phase 13: Delivery Partner App & Auto-Dispatch Engine
+#### Phase 13: Delivery Partner App & Auto-Dispatch Engine *(Completed ✅)*
 - **Deliverables:**
   - Rider duty status toggle (`isOnline: true / false`).
-  - Automated dispatch algorithm: queries nearest idle riders within 5km radius with 30s accept timer.
-  - Rider GPS pinging endpoint (`PUT /api/delivery/location`) throttled to 5 seconds.
-  - Rider earnings calculator (base fee + distance multiplier + tips).
+  - Automated dispatch algorithm: queries nearest idle riders within 5km radius with 30s accept timer and candidate cascading.
+  - Rider GPS pinging endpoint (`PUT /api/delivery/location`) with dynamic ETA and speed tracking.
+  - Rider earnings calculator (base ₹30 + distance ₹12/km + surge + 100% tips pass-through) with period summaries.
+- **DoD:** Orders trigger automated candidate matching and cascade offers across WebSockets with real-time tracking and earnings ledger.
 
 ---
 
@@ -183,12 +185,14 @@ gantt
 
 ### 🎯 Milestone 6 & 7: Frontend Application, Testing & Cloud Launch
 
-#### Next.js 16 Frontend Implementation (shadcn/ui)
+#### Next.js 16 Frontend Implementation (shadcn/ui) *(Completed ✅)*
 - **Deliverables:**
   - Full-screen vertical swipe Reels player with prefetching & double-tap heart burst.
   - Flipkart-style Sticky CTA (`+ Add to Cart` & `⚡ Buy Now`) with Vaul Customization Drawer.
-  - Real-time Interactive Delivery Tracking HUD with Leaflet/Mapbox & rider path animation.
-  - Restaurant Studio and Delivery Rider PWA interfaces.
+  - Single-Restaurant Cart, coupon engine, and 1-tap Slide-to-Pay.
+  - Real-time Interactive Delivery Tracking HUD with vector map & live rider path animation.
+  - Restaurant Studio POS with 3-stage incoming orders Kanban queue and audio alerts.
+  - Explore, Cuisines grid, Orders history, Wishlist, and Profile preferences.
 
 #### Phase 17 & 18: Testing, DevOps & Production Launch
 - **Deliverables:**
