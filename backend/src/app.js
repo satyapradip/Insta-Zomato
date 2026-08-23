@@ -16,6 +16,7 @@ const paymentRoutes = require("./routes/payment.routes");
 const walletRoutes = require("./routes/wallet.routes");
 const deliveryRoutes = require("./routes/delivery.routes");
 const locationRoutes = require("./routes/location.routes");
+const notificationRoutes = require("./routes/notification.routes");
 const errorMiddleware = require("./middlewares/error.middleware");
 const config = require("./config/index");
 const logger = require("./config/logger");
@@ -122,6 +123,8 @@ app.use("/api/wallet", walletRoutes);
 app.use("/api/delivery", deliveryRoutes);
 // Geospatial, Maps & Location routes
 app.use("/api/location", locationRoutes);
+// Multi-Channel Notifications & Alerts
+app.use("/api/notifications", notificationRoutes);
 
 // ── 404 handler (must come after all routes) ──────────────────────────────
 app.use((req, res) => {
