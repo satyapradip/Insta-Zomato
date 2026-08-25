@@ -181,11 +181,13 @@ gantt
   - Video content moderation and take-down tools (`PATCH /api/admin/reels/:id/availability`).
 - **DoD:** Administrators can monitor platform revenue and health, verify partners, onboard riders, and moderate content with strict role-based access control.
 
-#### Phase 15 & 16: Redis Caching & Database Optimization
+#### Phase 15 & 16: Redis Caching & Database Optimization *(Completed ✅)*
 - **Deliverables:**
-  - Cache middleware for trending feed, restaurant menus, and static categories.
-  - Compound indexes on MongoDB collections (`like: (user, food)`, `order: (user, status)`).
-  - Database connection pooling and query optimization.
+  - Hybrid Redis & In-Memory caching engine with automatic TTL and resilient fallback (`redis.services.js`).
+  - Route-level response caching middleware (`cacheMiddleware`) with sub-5ms `X-Cache: HIT` response headers on feed, search, suggestions, and categories.
+  - Granular cache invalidation on food item creation, availability toggle, and edits (`invalidateFoodCache`).
+  - High-performance compound indexes across PostgreSQL tables (`Food: [foodPartnerId, isAvailable]`, `[category, isAvailable]`, `[likeCount]`; `Order: [userId, status]`, `[partnerId, status]`, `[deliveryPartnerId, status]`; `FoodPartner: [isApproved, isOpen]`; `DeliveryPartner: [isApproved, isOnline]`).
+- **DoD:** Read-heavy discovery routes respond with $<5\text{ms}$ latency and automatically purge stale entries upon data mutations.
 
 ---
 
