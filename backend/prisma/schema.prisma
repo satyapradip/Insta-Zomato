@@ -128,6 +128,7 @@ model FoodPartner {
 
   @@index([email])
   @@index([city])
+  @@index([isApproved, isOpen])
 }
 
 model DeliveryPartner {
@@ -155,6 +156,7 @@ model DeliveryPartner {
 
   @@index([email])
   @@index([isOnline])
+  @@index([isApproved, isOnline])
 }
 
 model Food {
@@ -196,6 +198,9 @@ model Food {
   @@index([foodPartnerId])
   @@index([category])
   @@index([isAvailable])
+  @@index([foodPartnerId, isAvailable])
+  @@index([category, isAvailable])
+  @@index([likeCount])
 }
 
 model FoodVariant {
@@ -370,6 +375,10 @@ model Order {
   @@index([partnerId])
   @@index([deliveryPartnerId])
   @@index([status])
+  @@index([userId, status])
+  @@index([partnerId, status])
+  @@index([deliveryPartnerId, status])
+  @@index([createdAt])
 }
 
 model OrderItem {
