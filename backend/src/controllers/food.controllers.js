@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
+const { invalidateFoodCache } = require("../middlewares/cache.middleware");
 
 // ── Create Food Item & Video Reel ────────────────────────────────────────────
 // Protected — Food partners only.
@@ -104,6 +105,9 @@ const createFoodItem = asyncHandler(async (req, res) => {
       ? { ...savedFoodItem.foodPartner, _id: savedFoodItem.foodPartner.id }
       : null,
   };
+
+  // Invalidate feed and search cache
+  invalidateFoodCache({ partnerId: foodPartnerId });
 
   res
     .status(201)
@@ -236,6 +240,9 @@ const toggleAvailability = asyncHandler(async (req, res) => {
     data: { isAvailable: !foodItem.isAvailable },
   });
 
+  // Invalidate feed and search cache
+  invalidateFoodCache({ partnerId });
+
   res.status(200).json(
     new ApiResponse(
       200,
@@ -269,6 +276,9 @@ const deleteFoodItem = asyncHandler(async (req, res) => {
   await prisma.food.delete({
     where: { id: req.params.id },
   });
+
+  // Invalidate feed and search cache
+  invalidateFoodCache({ partnerId });
 
   res
     .status(200)

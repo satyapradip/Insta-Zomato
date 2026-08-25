@@ -10,19 +10,20 @@
 
 const express = require("express");
 const searchController = require("../controllers/search.controllers");
+const { cacheMiddleware } = require("../middlewares/cache.middleware");
 
 const router = express.Router();
 
-// Autocomplete suggestions
-router.get("/suggestions", searchController.getSuggestions);
+// Autocomplete suggestions (120s TTL cache)
+router.get("/suggestions", cacheMiddleware(120, "search:suggest"), searchController.getSuggestions);
 
-// Trending categories & popular keywords
-router.get("/trending", searchController.getTrending);
+// Trending categories & popular keywords (300s TTL cache)
+router.get("/trending", cacheMiddleware(300, "search:trending"), searchController.getTrending);
 
-// Category shortcut
-router.get("/category/:category", searchController.getCategoryDishes);
+// Category shortcut (60s TTL cache)
+router.get("/category/:category", cacheMiddleware(60, "search:category"), searchController.getCategoryDishes);
 
-// Universal Search (Dishes, Cuisines, Restaurants, Dynamic Facet Filters)
-router.get("/", searchController.searchAll);
+// Universal Search (Dishes, Cuisines, Restaurants, Dynamic Facet Filters - 30s TTL cache)
+router.get("/", cacheMiddleware(30, "search:query"), searchController.searchAll);
 
 module.exports = router;
