@@ -15,6 +15,7 @@ import {
 import { FoodItem, Variant, AddOn } from "@/types";
 import { api } from "@/lib/api";
 import { ReelPlayer } from "@/components/feed/ReelPlayer";
+import { CommentsSheet } from "@/components/feed/CommentsSheet";
 import { ModifierDrawer } from "@/components/customizer/ModifierDrawer";
 import { CartConflictModal } from "@/components/cart/CartConflictModal";
 import { DesktopSidebar } from "@/components/navigation/DesktopSidebar";
@@ -25,7 +26,7 @@ import { useCartStore } from "@/store/cartStore";
 import { toast } from "sonner";
 import Link from "next/link";
 
-// High-fidelity fallback/demo food reels if backend has no uploaded videos yet
+// ── High-Fidelity Demo Reels (Fallback if DB has 0 videos) ───────────────────
 const DEMO_FOOD_REELS: FoodItem[] = [
   {
     _id: "demo-1",
@@ -103,20 +104,20 @@ const DEMO_FOOD_REELS: FoodItem[] = [
     partner: {
       _id: "partner-2",
       restaurantName: "Bistro Verde Ristorante",
-      cuisineTypes: ["Italian", "Pizza", "Pastas"],
+      cuisineTypes: ["Italian", "Pizza", "Pasta"],
       rating: 4.9,
-      ratingCount: 2310,
+      ratingCount: 2180,
       isOpen: true,
       location: {
         type: "Point",
-        coordinates: [77.6413, 12.9784],
-        address: "Koramangala 5th Block, Bangalore",
+        coordinates: [77.6412, 12.9784],
+        address: "Koramangala 4th Block, Bangalore",
       },
     },
   },
   {
     _id: "demo-3",
-    title: "Dum Gosht Awadhi Dum Biryani",
+    title: "Dum Gosht Awadhi Biryani",
     description: "Slow-cooked saffron basmati rice with marinated tender mutton chunks, fried onions, and whole spices.",
     price: 420,
     discountPrice: 480,
@@ -165,6 +166,8 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState<"for_you" | "nearby" | "trending">("for_you");
   const [selectedFoodForDrawer, setSelectedFoodForDrawer] = useState<FoodItem | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [commentDishTitle, setCommentDishTitle] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const addItem = useCartStore((state) => state.addItem);
@@ -177,7 +180,46 @@ export default function FeedPage() {
     queryFn: async () => {
       try {
         const res = await api.get(`/feed?sort=${activeTab}&limit=10`);
-        return res.data?.data?.items || [];
+        const items = res.data?.data?.items || res.data?.data || [];
+        if (Array.isArray(items) && items.length > 0) {
+          return items.map((item: any) => ({
+            _id: item.id || item._id,
+            title: item.name || item.title,
+            description: item.description,
+            price: item.price,
+            discountPrice: item.discountedPrice || item.discountPrice,
+            videoUrl: item.video || item.videoUrl,
+            thumbnailUrl: item.thumbnailUrl,
+            isVeg: item.isVeg,
+            category: item.category,
+            spiceLevel: item.spiceLevel || "medium",
+            prepTimeMinutes: item.preparationTime || item.prepTimeMinutes || 20,
+            calories: item.calories,
+            isAvailable: item.isAvailable,
+            variants: item.variants || [],
+            addOns: item.addOns || [],
+            likesCount: item.likeCount || item.likesCount || 1200,
+            commentsCount: item.commentCount || item.commentsCount || 48,
+            savesCount: item.saveCount || item.savesCount || 230,
+            isLiked: false,
+            isSaved: false,
+            distanceKm: item.distanceKm || 2.1,
+            partner: {
+              _id: item.foodPartner?.id || item.foodPartnerId || "partner-1",
+              restaurantName: item.foodPartner?.restaurantName || item.foodPartner?.name || "Gourmet Kitchen",
+              cuisineTypes: ["Gourmet", "Fast Food"],
+              rating: item.foodPartner?.avgRating || 4.8,
+              ratingCount: 1500,
+              isOpen: item.foodPartner?.isOpen !== false,
+              location: {
+                type: "Point",
+                coordinates: [77.5946, 12.9716],
+                address: "Indiranagar, Bangalore",
+              },
+            },
+          }));
+        }
+        return [];
       } catch {
         return [];
       }
@@ -237,6 +279,11 @@ export default function FeedPage() {
     toast.success("Saved to your Food Wishlist! ⭐");
   };
 
+  const handleOpenComments = (food: FoodItem) => {
+    setCommentDishTitle(food.title);
+    setIsCommentsOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex justify-center">
       {/* Desktop Left Sidebar (Fixed 260px) */}
@@ -266,12 +313,12 @@ export default function FeedPage() {
                 For You
               </button>
               <button
-                onClick={() => setActiveTab("nearby")}
+                onClick={() => setActiveTab("trending")}
                 className={`px-3 py-1 rounded-full transition-all ${
-                  activeTab === "nearby" ? "bg-primary text-white shadow-md" : "text-white/60 hover:text-white"
+                  activeTab === "trending" ? "bg-primary text-white shadow-md" : "text-white/60 hover:text-white"
                 }`}
               >
-                Nearby
+                Trending
               </button>
             </div>
 
@@ -305,7 +352,7 @@ export default function FeedPage() {
                   isActive={idx === activeIndex}
                   onOpenCustomizer={handleOpenCustomizer}
                   onBuyNow={handleBuyNow}
-                  onOpenComments={() => toast.info("Opening comments thread... 💬")}
+                  onOpenComments={handleOpenComments}
                   onToggleLike={handleToggleLike}
                   onToggleSave={handleToggleSave}
                 />
@@ -327,7 +374,7 @@ export default function FeedPage() {
                   <DietaryBadge isVeg={currentFood.isVeg} showLabel />
                   <span className="text-xs text-muted flex items-center gap-1 font-medium">
                     <Flame className="w-3.5 h-3.5 text-orange-500" />
-                    <span>Trending #1 in City</span>
+                    <span>Trending #1 in Bangalore</span>
                   </span>
                 </div>
                 <h3 className="text-2xl font-black text-foreground tracking-tight">
@@ -348,105 +395,98 @@ export default function FeedPage() {
                 </div>
               </div>
 
-              {/* Restaurant Info Card */}
-              <div className="p-4 rounded-2xl bg-card-elevated border border-border space-y-2 shadow-xs">
+              {/* Restaurant Information Card */}
+              <div className="p-4 rounded-2xl bg-card-elevated border border-border space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">
+                  <h4 className="text-sm font-bold text-foreground">
                     {currentFood.partner.restaurantName}
+                  </h4>
+                  <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md text-xs font-bold border border-emerald-500/20">
+                    <span>★</span>
+                    <span>{currentFood.partner.rating}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted">
+                  {currentFood.partner.cuisineTypes?.join(", ") || "Fast Food"}
+                </p>
+                <div className="flex items-center gap-3 pt-1 text-xs text-muted">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-primary" />
+                    <span>{formatDistance(currentFood.distanceKm || 2.5)}</span>
                   </span>
-                  <span className="text-xs font-bold text-amber-500">
-                    ⭐ {currentFood.partner.rating}
+                  <span className="flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>{currentFood.prepTimeMinutes || 20} mins prep</span>
                   </span>
                 </div>
-                <p className="text-[11px] text-muted">
-                  {currentFood.partner.cuisineTypes.join(" • ")} • {formatDistance(currentFood.distanceKm || 1.8)}
-                </p>
               </div>
 
-              {/* Quick Customization Options */}
+              {/* Portion Options Quick View */}
               {currentFood.variants && currentFood.variants.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="text-xs font-bold text-foreground uppercase tracking-wider">
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-muted uppercase tracking-wider">
                     Portion Sizes Available
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {currentFood.variants.map((v: Variant) => (
+                  </h4>
+                  <div className="space-y-2">
+                    {currentFood.variants.map((v) => (
                       <div
                         key={v.name}
-                        className="p-3 rounded-xl bg-card-elevated border border-border text-xs text-foreground font-medium flex justify-between items-center shadow-xs"
+                        className="flex items-center justify-between p-3 rounded-xl bg-card-elevated border border-border text-xs"
                       >
-                        <span>{v.name}</span>
+                        <span className="font-semibold text-foreground">{v.name}</span>
                         <span className="font-bold text-primary">{formatPrice(v.price)}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Extra Add-ons */}
-              {currentFood.addOns && currentFood.addOns.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Popular Pairings</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {currentFood.addOns.map((a: AddOn) => (
-                      <div
-                        key={a.name}
-                        className="p-2.5 rounded-xl bg-card-elevated border border-border text-xs text-foreground flex justify-between items-center shadow-xs"
-                      >
-                        <span>{a.name}</span>
-                        <span className="font-semibold text-amber-500">+{formatPrice(a.price)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Sticky Order Action Box */}
+            {/* Bottom Actions & Cart Preview */}
             <div className="pt-4 border-t border-border space-y-3">
-              <div className="flex gap-2">
+              {cartItemsCount > 0 && (
+                <div className="flex items-center justify-between px-1 text-xs text-muted">
+                  <span>Cart Items ({cartItemsCount}):</span>
+                  <span className="font-extrabold text-foreground">{formatPrice(cartSubtotal)}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => handleOpenCustomizer(currentFood)}
-                  className="flex-1 bg-card-elevated hover:bg-card-hover text-foreground font-bold py-3 px-4 rounded-xl border border-border text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+                  className="py-3 px-4 rounded-xl bg-card-elevated hover:bg-card-hover border border-border text-foreground font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2"
                 >
                   <ShoppingBag className="w-4 h-4 text-primary" />
-                  <span>Customise & Add</span>
+                  <span>Customize</span>
                 </button>
-                <button
-                  onClick={() => handleBuyNow(currentFood)}
-                  className="flex-1 bg-primary hover:bg-primary-hover text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all"
-                >
-                  <Zap className="w-4 h-4 fill-white" />
-                  <span>⚡ 1-Tap Buy</span>
-                </button>
-              </div>
-
-              {/* Mini Cart Ledger Preview */}
-              {cartItemsCount > 0 && (
                 <Link
                   href="/cart"
-                  className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs font-bold text-primary hover:bg-primary/15 transition-all shadow-xs"
+                  className="py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
                 >
-                  <span>🛒 Active Cart ({cartItemsCount} items)</span>
-                  <span>{formatPrice(cartSubtotal)} ➔</span>
+                  <Zap className="w-4 h-4" />
+                  <span>View Cart ({cartItemsCount})</span>
                 </Link>
-              )}
+              </div>
             </div>
           </aside>
         )}
       </main>
 
-      {/* Flipkart-Style Modifier Bottom Sheet Drawer */}
+      {/* Vaul Bottom Sheet Modifier Drawer */}
       <ModifierDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         food={selectedFoodForDrawer}
       />
 
-      {/* Single-Restaurant Conflict Protection Modal */}
+      {/* Interactive Comments Sheet */}
+      <CommentsSheet
+        isOpen={isCommentsOpen}
+        onClose={() => setIsCommentsOpen(false)}
+        dishTitle={commentDishTitle}
+      />
+
+      {/* Single-Restaurant Cart Conflict Modal */}
       <CartConflictModal />
     </div>
   );

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Heart, MessageCircle, Bookmark, Share2, Music2 } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 
 interface ActionRailProps {
@@ -33,11 +33,18 @@ export function ActionRail({
   onToggleSound,
 }: ActionRailProps) {
   const [likeScale, setLikeScale] = useState(1);
+  const [saveScale, setSaveScale] = useState(1);
 
   const handleLike = () => {
     setLikeScale(1.4);
     setTimeout(() => setLikeScale(1), 300);
     onToggleLike();
+  };
+
+  const handleSave = () => {
+    setSaveScale(1.3);
+    setTimeout(() => setSaveScale(1), 300);
+    onToggleSave();
   };
 
   const handleShare = async () => {
@@ -49,11 +56,11 @@ export function ActionRail({
           url: `${window.location.origin}/feed#${foodId}`,
         });
       } catch {
-        // Ignored if user dismissed
+        // Dismissed share modal
       }
     } else {
       navigator.clipboard.writeText(`${window.location.origin}/feed#${foodId}`);
-      toast.success("Link copied to clipboard! 📋");
+      toast.success("Reel link copied to clipboard! 📋");
     }
   };
 
@@ -65,7 +72,16 @@ export function ActionRail({
   };
 
   return (
-    <div className="flex flex-col items-center gap-5 z-20">
+    <div className="flex flex-col items-center gap-4 z-20">
+      {/* Sound Mute/Unmute Button */}
+      <button
+        onClick={onToggleSound}
+        className="w-11 h-11 rounded-full flex items-center justify-center backdrop-blur-md bg-black/40 border border-white/15 text-white hover:bg-white/10 transition-colors"
+        aria-label="Toggle Sound"
+      >
+        {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-emerald-400" />}
+      </button>
+
       {/* Like Button */}
       <button
         onClick={handleLike}
@@ -98,7 +114,7 @@ export function ActionRail({
         className="group flex flex-col items-center gap-1 focus:outline-none"
         aria-label="Comments"
       >
-        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-md border border-white/15 text-white group-hover:bg-white/10 transition-colors">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md bg-black/40 border border-white/15 text-white group-hover:bg-white/10 transition-colors">
           <MessageCircle className="w-6 h-6" />
         </div>
         <span className="text-xs font-semibold text-white drop-shadow-md">
@@ -106,13 +122,15 @@ export function ActionRail({
         </span>
       </button>
 
-      {/* Bookmark / Save */}
+      {/* Save to Wishlist Button */}
       <button
-        onClick={onToggleSave}
+        onClick={handleSave}
         className="group flex flex-col items-center gap-1 focus:outline-none"
-        aria-label="Save to Wishlist"
+        aria-label="Bookmark"
       >
-        <div
+        <motion.div
+          animate={{ scale: saveScale }}
+          transition={{ type: "spring", stiffness: 400, damping: 15 }}
           className={`w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md border transition-colors ${
             isSaved
               ? "bg-amber-500/25 border-amber-500/50 text-amber-400"
@@ -124,7 +142,7 @@ export function ActionRail({
               isSaved ? "fill-amber-400 text-amber-400" : "text-white"
             }`}
           />
-        </div>
+        </motion.div>
         <span className="text-xs font-semibold text-white drop-shadow-md">
           {formatCount(savesCount)}
         </span>
@@ -134,34 +152,12 @@ export function ActionRail({
       <button
         onClick={handleShare}
         className="group flex flex-col items-center gap-1 focus:outline-none"
-        aria-label="Share"
+        aria-label="Share Reel"
       >
-        <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/40 backdrop-blur-md border border-white/15 text-white group-hover:bg-white/10 transition-colors">
-          <Share2 className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-md bg-black/40 border border-white/15 text-white group-hover:bg-white/10 transition-colors">
+          <Share2 className="w-5 h-5" />
         </div>
         <span className="text-xs font-semibold text-white drop-shadow-md">Share</span>
-      </button>
-
-      {/* Rotating Audio Vinyl Disc */}
-      <button
-        onClick={onToggleSound}
-        className="mt-2 relative flex items-center justify-center focus:outline-none"
-        aria-label="Toggle Mute"
-      >
-        <motion.div
-          animate={!isMuted ? { rotate: 360 } : { rotate: 0 }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-          className="w-11 h-11 rounded-full bg-linear-to-tr from-zinc-900 to-zinc-700 border-2 border-white/30 flex items-center justify-center shadow-lg"
-        >
-          <div className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
-            <div className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-          </div>
-        </motion.div>
-        {isMuted && (
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-[9px] text-white font-bold border border-black">
-            ✕
-          </span>
-        )}
       </button>
     </div>
   );

@@ -51,19 +51,19 @@ export default function FavoritesPage() {
       <DesktopSidebar />
 
       <main className="flex-1 lg:pl-64 max-w-4xl w-full p-4 md:p-8 space-y-6">
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
+        <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Link
               href="/feed"
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-white border border-white/10 transition-colors"
+              className="p-2 rounded-xl bg-card-elevated hover:bg-card-hover text-foreground border border-border transition-colors shadow-xs"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
-              <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
+              <h1 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
                 Saved Wishlist
               </h1>
-              <p className="text-xs text-white/50">Your bookmarked dishes and collections</p>
+              <p className="text-xs text-muted">Your bookmarked dishes and collections</p>
             </div>
           </div>
         </div>
@@ -72,35 +72,35 @@ export default function FavoritesPage() {
           {SAVED_DISHES.map((dish) => (
             <div
               key={dish.id}
-              className="bg-card border border-white/10 rounded-2xl p-4 flex items-center justify-between gap-4 shadow-xl"
+              className="bg-card border border-border rounded-3xl p-4 flex items-center justify-between gap-4 shadow-sm hover:border-primary/30 transition-all"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <img
                   src={dish.image}
                   alt={dish.title}
-                  className="w-16 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0"
+                  className="w-16 h-16 rounded-2xl object-cover border border-border shrink-0"
                 />
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <DietaryBadge isVeg={dish.isVeg} />
-                    <h3 className="text-sm font-bold text-white truncate">{dish.title}</h3>
+                    <h3 className="text-sm font-bold text-foreground truncate">{dish.title}</h3>
                   </div>
-                  <p className="text-[11px] text-white/50 truncate">{dish.restaurant}</p>
-                  <p className="text-xs font-extrabold text-white">{formatPrice(dish.price)}</p>
+                  <p className="text-[11px] text-muted truncate">{dish.restaurant}</p>
+                  <p className="text-xs font-extrabold text-primary">{formatPrice(dish.price)}</p>
                 </div>
               </div>
 
-              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+              <div className="flex flex-col items-end gap-2 shrink-0">
                 <button
                   onClick={() => handleQuickAdd(dish)}
-                  className="bg-primary hover:bg-primary-hover text-white text-xs font-bold py-1.5 px-3 rounded-xl transition-colors flex items-center gap-1"
+                  className="bg-primary hover:bg-primary-hover text-white text-xs font-bold py-1.5 px-3 rounded-xl transition-colors flex items-center gap-1 shadow-xs"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" />
                   <span>Order</span>
                 </button>
                 <Link
                   href="/feed"
-                  className="text-[10px] text-white/60 hover:text-white flex items-center gap-0.5"
+                  className="text-[10px] text-muted hover:text-foreground flex items-center gap-0.5"
                 >
                   <Film className="w-3 h-3" />
                   <span>Reel</span>

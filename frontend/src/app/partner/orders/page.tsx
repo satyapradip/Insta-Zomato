@@ -17,10 +17,14 @@ import {
   Film,
   UtensilsCrossed,
   ArrowRight,
+  UploadCloud,
+  ArrowLeft,
+  Check,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { DietaryBadge } from "@/components/common/DietaryBadge";
 import { getSocket } from "@/lib/socket";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 interface PartnerOrder {
@@ -134,7 +138,6 @@ export default function PartnerOrdersPage() {
     socket.on("partner:new_order", (newOrder: PartnerOrder) => {
       setOrders((prev) => [newOrder, ...prev]);
       if (!isAudioMuted) {
-        // Play notification sound
         toast.success(`⚡ New Incoming Order ${newOrder.orderNumber}!`, {
           duration: 6000,
         });
@@ -177,9 +180,9 @@ export default function PartnerOrdersPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Top POS Header */}
-      <header className="h-16 border-b border-white/10 bg-card px-6 flex items-center justify-between z-30">
+      <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between z-30 shadow-xs">
         <div className="flex items-center gap-4">
-          <Link href="/feed" className="flex items-center gap-2 text-white font-black text-lg">
+          <Link href="/feed" className="flex items-center gap-2 text-foreground font-black text-lg">
             <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-primary to-secondary flex items-center justify-center text-white">
               <UtensilsCrossed className="w-4 h-4" />
             </div>
@@ -188,16 +191,16 @@ export default function PartnerOrdersPage() {
             </span>
           </Link>
 
-          <div className="h-6 w-px bg-white/10" />
+          <div className="h-6 w-px bg-border" />
 
           <div className="flex items-center gap-2">
-            <Store className="w-4 h-4 text-amber-400" />
-            <span className="text-sm font-bold text-white">The Gourmet Grill</span>
+            <Store className="w-4 h-4 text-amber-500" />
+            <span className="text-sm font-bold text-foreground">The Gourmet Grill</span>
             <span
               className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                 isOpen
-                  ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                  : "bg-red-500/15 text-red-400 border-red-500/30"
+                  ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                  : "bg-red-500/15 text-red-500 border-red-500/30"
               }`}
             >
               {isOpen ? "LIVE • OPEN" : "CLOSED"}
@@ -206,259 +209,176 @@ export default function PartnerOrdersPage() {
         </div>
 
         {/* Store Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/partner/upload"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-xs transition-colors"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload Dish Video</span>
+          </Link>
+
           <button
             onClick={() => setIsAudioMuted(!isAudioMuted)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
               !isAudioMuted
-                ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                : "bg-white/5 text-white/50 border-white/10"
+                ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30"
+                : "bg-card-elevated text-muted border-border"
             }`}
           >
             {!isAudioMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             <span>{isAudioMuted ? "Muted" : "Kitchen Audio ON"}</span>
           </button>
-
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors"
-          >
-            Toggle Store Status
-          </button>
-
-          <Link
-            href="/feed"
-            className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-          >
-            <span>Customer View</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
         </div>
       </header>
 
-      {/* Main Kanban Content */}
-      <main className="flex-1 p-6 overflow-x-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-black text-white tracking-tight">
-            Kitchen POS & Incoming Orders Queue
-          </h1>
-          <div className="flex items-center gap-2 text-xs font-bold text-white/60">
-            <span>Total Active Orders:</span>
-            <span className="text-white font-black bg-primary/20 text-primary px-2.5 py-0.5 rounded-full">
-              {orders.length}
+      {/* 3-COLUMN KANBAN BOARD */}
+      <main className="flex-1 p-6 overflow-x-auto grid grid-cols-1 md:grid-cols-3 gap-6 bg-background">
+        {/* COLUMN 1: NEW ORDERS */}
+        <div className="flex flex-col rounded-3xl bg-card border border-border overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-border bg-card-elevated flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+              <h2 className="font-extrabold text-sm text-foreground">New Incoming</h2>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-extrabold border border-primary/20">
+              {newOrders.length}
             </span>
+          </div>
+
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {newOrders.map((order) => (
+              <div
+                key={order.id}
+                className="bg-card-elevated border border-primary/30 rounded-2xl p-4 space-y-3 shadow-sm hover:border-primary transition-all"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-mono font-bold text-primary">{order.orderNumber}</span>
+                    <h3 className="text-sm font-bold text-foreground">{order.customerName}</h3>
+                  </div>
+                  <span className="text-xs font-black text-foreground">{formatPrice(order.totalAmount)}</span>
+                </div>
+
+                <div className="space-y-1 py-1 border-y border-border">
+                  {order.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-foreground/90 font-medium">
+                        {it.quantity}x {it.title}
+                      </span>
+                      <span className="text-muted font-mono">{formatPrice(it.price)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => handleRejectOrder(order.id)}
+                    className="flex-1 py-2 rounded-xl bg-card hover:bg-card-hover border border-border text-xs font-semibold text-rose-500"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleAcceptOrder(order.id)}
+                    className="flex-2 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-xs"
+                  >
+                    Accept & Prepare (20m)
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* 3-COLUMN KANBAN BOARD */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          {/* COLUMN 1: NEW ORDERS */}
-          <div className="bg-card border border-white/10 rounded-3xl p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  New Incoming
-                </h2>
-              </div>
-              <span className="text-xs font-black bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full">
-                {newOrders.length}
-              </span>
+        {/* COLUMN 2: PREPARING IN KITCHEN */}
+        <div className="flex flex-col rounded-3xl bg-card border border-border overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-border bg-card-elevated flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <h2 className="font-extrabold text-sm text-foreground">Kitchen Preparing</h2>
             </div>
-
-            <div className="space-y-3">
-              {newOrders.length === 0 ? (
-                <div className="p-8 text-center text-xs text-white/40 border border-dashed border-white/10 rounded-2xl">
-                  No new incoming orders right now.
-                </div>
-              ) : (
-                newOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="p-4 rounded-2xl bg-card-elevated border-2 border-orange-500/40 space-y-3 shadow-lg animate-in fade-in zoom-in"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-white">{order.orderNumber}</span>
-                      <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{order.timerMinutes}m accept timer</span>
-                      </span>
-                    </div>
-
-                    <div className="text-xs text-white/80 font-medium">
-                      Customer: <strong>{order.customerName}</strong> ({order.customerPhone})
-                    </div>
-
-                    {/* Dish list */}
-                    <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs">
-                      {order.items.map((i, idx) => (
-                        <div key={idx} className="flex justify-between items-start">
-                          <div className="flex items-center gap-1.5">
-                            <DietaryBadge isVeg={i.isVeg} />
-                            <span className="text-white font-semibold">
-                              {i.quantity}x {i.title}
-                            </span>
-                          </div>
-                          <span className="text-white/60 font-mono">{formatPrice(i.price)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs">
-                      <span className="text-white/50">Total Bill</span>
-                      <span className="text-sm font-black text-primary">
-                        {formatPrice(order.totalAmount)}
-                      </span>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        onClick={() => handleAcceptOrder(order.id)}
-                        className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1 shadow-md"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Accept</span>
-                      </button>
-                      <button
-                        onClick={() => handleRejectOrder(order.id)}
-                        className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs font-bold py-2 px-3 rounded-xl transition-colors flex items-center justify-center gap-1"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>Reject</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-xs font-extrabold border border-amber-500/20">
+              {preparingOrders.length}
+            </span>
           </div>
 
-          {/* COLUMN 2: KITCHEN PREPARING */}
-          <div className="bg-card border border-white/10 rounded-3xl p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Kitchen Prep
-                </h2>
-              </div>
-              <span className="text-xs font-black bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
-                {preparingOrders.length}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {preparingOrders.length === 0 ? (
-                <div className="p-8 text-center text-xs text-white/40 border border-dashed border-white/10 rounded-2xl">
-                  Kitchen is clear.
-                </div>
-              ) : (
-                preparingOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="p-4 rounded-2xl bg-card-elevated border border-white/15 space-y-3 shadow-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-white">{order.orderNumber}</span>
-                      <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>{order.timerMinutes}m remaining</span>
-                      </span>
-                    </div>
-
-                    {/* Dish list */}
-                    <div className="space-y-1.5 pt-2 border-t border-white/10 text-xs">
-                      {order.items.map((i, idx) => (
-                        <div key={idx} className="space-y-0.5">
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-1.5">
-                              <DietaryBadge isVeg={i.isVeg} />
-                              <span className="text-white font-semibold">
-                                {i.quantity}x {i.title}
-                              </span>
-                            </div>
-                            <span className="text-white/60 font-mono">{formatPrice(i.price)}</span>
-                          </div>
-                          {i.variant && (
-                            <p className="text-[11px] text-primary pl-5">Size: {i.variant}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => handleMarkReady(order.id)}
-                      className="w-full bg-linear-to-r from-amber-500 to-orange-500 hover:brightness-110 text-black text-xs font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md"
-                    >
-                      <PackageCheck className="w-4 h-4" />
-                      <span>Mark Ready for Pickup</span>
-                    </button>
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {preparingOrders.map((order) => (
+              <div
+                key={order.id}
+                className="bg-card-elevated border border-border rounded-2xl p-4 space-y-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-mono font-bold text-amber-500">{order.orderNumber}</span>
+                    <h3 className="text-sm font-bold text-foreground">{order.customerName}</h3>
                   </div>
-                ))
-              )}
+                  <span className="text-xs font-black text-foreground">{formatPrice(order.totalAmount)}</span>
+                </div>
+
+                <div className="space-y-1 py-1 border-y border-border">
+                  {order.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between text-xs">
+                      <span className="text-foreground/90 font-medium">
+                        {it.quantity}x {it.title}
+                      </span>
+                      <span className="text-muted font-mono">{formatPrice(it.price)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handleMarkReady(order.id)}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-xs transition-colors"
+                >
+                  Mark Ready for Pickup 📦
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* COLUMN 3: READY FOR RIDER PICKUP */}
+        <div className="flex flex-col rounded-3xl bg-card border border-border overflow-hidden shadow-sm">
+          <div className="p-4 border-b border-border bg-card-elevated flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <h2 className="font-extrabold text-sm text-foreground">Ready for Pickup</h2>
             </div>
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-extrabold border border-emerald-500/20">
+              {readyOrders.length}
+            </span>
           </div>
 
-          {/* COLUMN 3: READY FOR PICKUP */}
-          <div className="bg-card border border-white/10 rounded-3xl p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Ready for Pickup
-                </h2>
-              </div>
-              <span className="text-xs font-black bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
-                {readyOrders.length}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {readyOrders.length === 0 ? (
-                <div className="p-8 text-center text-xs text-white/40 border border-dashed border-white/10 rounded-2xl">
-                  No orders waiting for pickup.
-                </div>
-              ) : (
-                readyOrders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="p-4 rounded-2xl bg-card-elevated border border-emerald-500/30 space-y-3 shadow-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-white">{order.orderNumber}</span>
-                      <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                        Packed & Ready
-                      </span>
-                    </div>
-
-                    {order.assignedRider && (
-                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2">
-                          <Bike className="w-4 h-4 text-primary" />
-                          <span className="text-white font-medium">{order.assignedRider.name}</span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold ${
-                            order.assignedRider.hasArrived ? "text-emerald-400" : "text-amber-400"
-                          }`}
-                        >
-                          {order.assignedRider.hasArrived ? "Arrived at Restaurant" : "En Route"}
-                        </span>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleHandover(order.id)}
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2.5 px-3 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-md"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Handover to Rider</span>
-                    </button>
+          <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {readyOrders.map((order) => (
+              <div
+                key={order.id}
+                className="bg-card-elevated border border-emerald-500/30 rounded-2xl p-4 space-y-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="text-xs font-mono font-bold text-emerald-500">{order.orderNumber}</span>
+                    <h3 className="text-sm font-bold text-foreground">{order.customerName}</h3>
                   </div>
-                ))
-              )}
-            </div>
+                  <span className="text-xs font-black text-foreground">{formatPrice(order.totalAmount)}</span>
+                </div>
+
+                {order.assignedRider && (
+                  <div className="p-2.5 rounded-xl bg-card border border-border flex items-center justify-between text-xs">
+                    <span className="text-muted">Rider: {order.assignedRider.name}</span>
+                    <span className="text-emerald-500 font-bold">Arrived 🛵</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handleHandover(order.id)}
+                  className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition-colors"
+                >
+                  Confirm Handover to Rider ➔
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </main>
