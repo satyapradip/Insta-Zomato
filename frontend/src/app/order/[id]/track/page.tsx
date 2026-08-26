@@ -17,14 +17,24 @@ import {
   Copy,
   HelpCircle,
   Sparkles,
+  Store,
+  ChevronRight,
 } from "lucide-react";
 import { DesktopSidebar } from "@/components/navigation/DesktopSidebar";
 import { MobileBottomNav } from "@/components/navigation/MobileBottomNav";
+import { LiveDeliveryMap } from "@/components/location/LiveDeliveryMap";
 import { formatPrice } from "@/lib/utils";
 import { getSocket } from "@/lib/socket";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { OrderStatus } from "@/types";
 
+/**
+ * 🛵 Real-Time Order Tracking HUD
+ * ----------------------------------------------------------------------
+ * Displays live Google Maps road route, glowing rider movement along
+ * real road vectors, delivery OTP, and updates dynamically via WebSocket.
+ */
 export default function OrderTrackingPage() {
   const params = useParams();
   const orderId = (params?.id as string) || "IZ-40921";
@@ -32,19 +42,75 @@ export default function OrderTrackingPage() {
 
   const [status, setStatus] = useState<OrderStatus>("OUT_FOR_DELIVERY");
   const [etaMinutes, setEtaMinutes] = useState(14);
-  const [otp] = useState("8392");
+  const [otp, setOtp] = useState("8392");
   const [copiedOtp, setCopiedOtp] = useState(false);
+  const [restaurantName, setRestaurantName] = useState("The Gourmet Grill");
+  const [totalAmount, setTotalAmount] = useState(847);
+  const [itemsSummary, setItemsSummary] = useState("2x Smokey Truffle Beast Burger, 1x Truffle Fries");
+
+  // GPS Coordinates for Live Google Map
+  const [restaurantLocation, setRestaurantLocation] = useState({
+    lat: 12.9784,
+    lng: 77.6408,
+    name: "The Gourmet Grill (Indiranagar)",
+  });
+  const [customerLocation, setCustomerLocation] = useState({
+    lat: 12.9352,
+    lng: 77.6245,
+    name: "Your Doorstep (Koramangala)",
+  });
 
   // Simulated GPS rider route progress (0 to 100%)
   const [riderProgress, setRiderProgress] = useState(65);
 
+  // Fetch live order data from Backend API if exists
+  useEffect(() => {
+    async function fetchOrderDetails() {
+      try {
+        const res = await api.get(`/orders/${orderId}`);
+        const data = res.data?.data || res.data;
+        if (data) {
+          if (data.status) setStatus(data.status);
+          if (data.deliveryOtp || data.otp) setOtp(data.deliveryOtp || data.otp);
+          if (data.totalAmount) setTotalAmount(data.totalAmount);
+          if (data.partner?.restaurantName || data.restaurantName) {
+            setRestaurantName(data.partner?.restaurantName || data.restaurantName);
+          }
+          if (data.partner?.latitude && data.partner?.longitude) {
+            setRestaurantLocation({
+              lat: data.partner.latitude,
+              lng: data.partner.longitude,
+              name: data.partner.restaurantName || "Restaurant Kitchen",
+            });
+          }
+          if (data.deliveryAddress?.coordinates) {
+            setCustomerLocation({
+              lat: data.deliveryAddress.coordinates[1],
+              lng: data.deliveryAddress.coordinates[0],
+              name: "Your Doorstep",
+            });
+          }
+          if (data.items && Array.isArray(data.items)) {
+            const summary = data.items.map((i: any) => `${i.quantity}x ${i.title || i.name}`).join(", ");
+            if (summary) setItemsSummary(summary);
+          }
+        }
+      } catch {
+        // Fallback for demo testing
+      }
+    }
+
+    fetchOrderDetails();
+  }, [orderId]);
+
+  // WebSocket Live Listener
   useEffect(() => {
     const socket = getSocket();
     socket.emit("join:order", { orderId });
 
     socket.on("order:status_update", (data: { status: OrderStatus }) => {
       setStatus(data.status);
-      toast.info(`Order Status Updated: ${data.status}`);
+      toast.info(`Order Status Updated: ${data.status.replace(/_/g, " ")} ⚡`);
     });
 
     socket.on(
@@ -57,8 +123,8 @@ export default function OrderTrackingPage() {
 
     // Minor simulated rider movement glide
     const interval = setInterval(() => {
-      setRiderProgress((prev) => (prev < 90 ? prev + 1 : prev));
-    }, 4000);
+      setRiderProgress((prev) => (prev < 92 ? prev + 1 : prev));
+    }, 3500);
 
     return () => {
       socket.off("order:status_update");
@@ -70,7 +136,7 @@ export default function OrderTrackingPage() {
   const handleCopyOtp = () => {
     navigator.clipboard.writeText(otp);
     setCopiedOtp(true);
-    toast.success("Delivery OTP copied to clipboard!");
+    toast.success("Delivery OTP copied to clipboard! 📋");
     setTimeout(() => setCopiedOtp(false), 2000);
   };
 
@@ -109,108 +175,45 @@ export default function OrderTrackingPage() {
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <div className="flex items-center gap-3">
             <Link
-              href="/feed"
+              href="/orders"
               className="p-2 rounded-xl bg-card-elevated hover:bg-card-hover text-foreground border border-border transition-colors shadow-xs"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <h1 className="text-xl md:text-2xl font-black text-foreground tracking-tight">
                   Live Order Tracking
                 </h1>
+                <span className="hidden sm:inline-block text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20">
+                  Google Maps GPS
+                </span>
               </div>
               <p className="text-xs text-muted">
-                Order ID: <strong className="text-foreground font-mono">{orderId}</strong>
+                Order ID: <strong className="text-foreground font-mono">{orderId}</strong> • {restaurantName}
               </p>
             </div>
           </div>
 
           <button
             onClick={() => toast.info("Support assistant connecting... 🎧")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card-elevated hover:bg-card-hover border border-border text-xs font-semibold text-foreground transition-colors shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card-elevated hover:bg-card-hover border border-border text-xs font-semibold text-foreground transition-colors shadow-xs cursor-pointer"
           >
             <HelpCircle className="w-4 h-4 text-muted" />
             <span>Help</span>
           </button>
         </div>
 
-        {/* INTERACTIVE VECTOR MAP HUD */}
-        <div className="relative w-full h-72 md:h-96 rounded-3xl overflow-hidden bg-card-elevated border border-border shadow-md flex items-center justify-center">
-          {/* Simulated Dark Vector Map Grid & Roads */}
-          <div className="absolute inset-0 bg-[#090b10] opacity-95">
-            {/* Grid Pattern */}
-            <div className="w-full h-full bg-[radial-gradient(#1e2433_1px,transparent_1px)] [background-size:24px_24px] opacity-40" />
-            {/* Simulated Road Paths */}
-            <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
-              {/* Secondary gray roads */}
-              <path
-                d="M 50 250 L 220 180 L 400 220 L 700 80"
-                stroke="rgba(255,255,255,0.08)"
-                strokeWidth="8"
-                fill="none"
-              />
-              <path
-                d="M 120 40 L 180 180 L 260 320"
-                stroke="rgba(255,255,255,0.08)"
-                strokeWidth="6"
-                fill="none"
-              />
-              {/* Primary Glowing Neon Route Polyline */}
-              <path
-                d="M 120 220 C 200 200, 280 140, 480 160 S 680 90, 760 110"
-                stroke="rgba(220, 38, 38, 0.4)"
-                strokeWidth="8"
-                fill="none"
-              />
-              <path
-                d="M 120 220 C 200 200, 280 140, 480 160 S 680 90, 760 110"
-                stroke="#dc2626"
-                strokeWidth="4"
-                strokeDasharray="8 6"
-                className="animate-[dash_2s_linear_infinite]"
-                fill="none"
-              />
-            </svg>
-          </div>
-
-          {/* Restaurant Marker (Start) */}
-          <div className="absolute left-[15%] bottom-[35%] flex flex-col items-center gap-1 z-10">
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.5)]">
-              <ChefHat className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-bold bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 text-white">
-              The Gourmet Grill
-            </span>
-          </div>
-
-          {/* Gliding Rider Marker */}
-          <div
-            style={{ left: `${riderProgress}%`, top: "42%" }}
-            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 z-20 transition-all duration-1000 ease-out"
-          >
-            {/* Live ETA Floating Pill */}
-            <div className="bg-primary text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-lg flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              <span>{etaMinutes} mins</span>
-            </div>
-            {/* Scooter Badge */}
-            <div className="w-12 h-12 rounded-full bg-linear-to-tr from-primary to-secondary border-2 border-white flex items-center justify-center text-white shadow-2xl animate-bounce">
-              <Bike className="w-6 h-6" />
-            </div>
-          </div>
-
-          {/* Destination Customer Home Marker (End) */}
-          <div className="absolute right-[12%] top-[25%] flex flex-col items-center gap-1 z-10">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.5)]">
-              <Home className="w-5 h-5" />
-            </div>
-            <span className="text-[10px] font-bold bg-black/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 text-white">
-              Your Doorstep
-            </span>
-          </div>
-        </div>
+        {/* REAL INTERACTIVE GOOGLE MAP DELIVERY HUD */}
+        <LiveDeliveryMap
+          origin={restaurantLocation}
+          destination={customerLocation}
+          riderProgress={riderProgress}
+          etaMinutes={etaMinutes}
+          status={status}
+          className="w-full h-80 md:h-[420px]"
+        />
 
         {/* 4-STAGE VISUAL PROGRESS STEPPER */}
         <div className="bg-card border border-border rounded-3xl p-5 md:p-6 space-y-6 shadow-sm">
@@ -220,7 +223,11 @@ export default function OrderTrackingPage() {
                 Order Status
               </span>
               <h2 className="text-lg md:text-xl font-extrabold text-foreground">
-                Rider is on the way with your food 🛵
+                {status === "DELIVERED"
+                  ? "Order Delivered! Enjoy your meal 🍕"
+                  : status === "PREPARING"
+                  ? "Kitchen is preparing your food 🍳"
+                  : "Rider is on the way with your food 🛵"}
               </h2>
             </div>
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full">
@@ -339,6 +346,18 @@ export default function OrderTrackingPage() {
                 <span>Message</span>
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Order Items Breakdown */}
+        <div className="p-5 rounded-3xl bg-card border border-border flex items-center justify-between shadow-sm">
+          <div className="space-y-0.5">
+            <span className="text-[11px] text-muted font-semibold">Items in Order:</span>
+            <p className="text-xs font-bold text-foreground">{itemsSummary}</p>
+          </div>
+          <div className="text-right">
+            <span className="text-[11px] text-muted font-semibold">Total Paid</span>
+            <div className="text-sm font-black text-primary">{formatPrice(totalAmount)}</div>
           </div>
         </div>
       </main>
