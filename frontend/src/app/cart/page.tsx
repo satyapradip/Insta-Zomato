@@ -57,10 +57,15 @@ export default function CartPage() {
   const getTaxes = useCartStore((state) => state.getTaxes);
   const getGrandTotal = useCartStore((state) => state.getGrandTotal);
 
+  const [mounted, setMounted] = useState(false);
   const [couponCodeInput, setCouponCodeInput] = useState("");
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Active Selected Delivery Address (with default Bangalore coordinates)
   const [selectedAddress, setSelectedAddress] = useState<AddressData>({
@@ -192,7 +197,7 @@ export default function CartPage() {
     }
   };
 
-  if (items.length === 0) {
+  if (!mounted || items.length === 0) {
     return (
       <div className="min-h-screen bg-background text-foreground flex justify-center">
         <DesktopSidebar />

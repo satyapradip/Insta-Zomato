@@ -30,11 +30,16 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
+  const [mounted, setMounted] = useState(false);
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [isVegOnly, setIsVegOnly] = useState(false);
   const [spicePreference, setSpicePreference] = useState<"mild" | "medium" | "hot">("medium");
@@ -166,7 +171,7 @@ export default function ProfilePage() {
         </div>
 
         {/* User Card / Login Banner */}
-        {isAuthenticated && user ? (
+        {mounted && isAuthenticated && user ? (
           <div className="bg-card border border-border rounded-3xl p-6 shadow-sm flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-linear-to-tr from-primary to-secondary flex items-center justify-center text-white text-2xl font-black shadow-md">

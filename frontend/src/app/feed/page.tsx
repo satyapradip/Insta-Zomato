@@ -161,6 +161,7 @@ const DEMO_FOOD_REELS: FoodItem[] = [
 ];
 
 export default function FeedPage() {
+  const [mounted, setMounted] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPureVegFilter, setIsPureVegFilter] = useState(false);
   const [activeTab, setActiveTab] = useState<"for_you" | "nearby" | "trending">("for_you");
@@ -173,6 +174,10 @@ export default function FeedPage() {
   const addItem = useCartStore((state) => state.addItem);
   const cartSubtotal = useCartStore((state) => state.getSubtotal());
   const cartItemsCount = useCartStore((state) => state.getItemCount());
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Fetch live reels from backend API with fallback
   const { data: apiReels } = useQuery({
@@ -444,7 +449,7 @@ export default function FeedPage() {
 
             {/* Bottom Actions & Cart Preview */}
             <div className="pt-4 border-t border-border space-y-3">
-              {cartItemsCount > 0 && (
+              {mounted && cartItemsCount > 0 && (
                 <div className="flex items-center justify-between px-1 text-xs text-muted">
                   <span>Cart Items ({cartItemsCount}):</span>
                   <span className="font-extrabold text-foreground">{formatPrice(cartSubtotal)}</span>
@@ -464,7 +469,7 @@ export default function FeedPage() {
                   className="py-3 px-4 rounded-xl bg-primary hover:bg-primary-hover text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4" />
-                  <span>View Cart ({cartItemsCount})</span>
+                  <span>View Cart {mounted && cartItemsCount > 0 ? `(${cartItemsCount})` : ""}</span>
                 </Link>
               </div>
             </div>
