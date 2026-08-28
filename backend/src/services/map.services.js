@@ -351,6 +351,67 @@ async function autocompletePlaces(input) {
   ];
 }
 
+/**
+ * Calculates latitude and longitude bounding-box limits (minLat, maxLat, minLng, maxLng)
+ * for a center point and a search radius in kilometers.
+ *
+ * @param {number} centerLat Latitude of center point
+ * @param {number} centerLng Longitude of center point
+ * @param {number} radiusKm Search radius in kilometers
+ * @returns {{ minLat: number, maxLat: number, minLng: number, maxLng: number }}
+ */
+function calculateBoundingBox(centerLat, centerLng, radiusKm) {
+  const lat = Number(centerLat);
+  const lng = Number(centerLng);
+  const radius = Number(radiusKm);
+
+  if (isNaN(lat) || isNaN(lng) || isNaN(radius) || radius <= 0) {
+    throw new Error("Valid center latitude, longitude, and positive radius are required");
+  }
+
+  // 1 degree latitude = (pi * EARTH_RADIUS_KM) / 180 ~ 111.19 km
+  const deltaLat = (radius / EARTH_RADIUS_KM) * (180 / Math.PI);
+
+  // 1 degree longitude = 111.19 km * cos(lat)
+  const latRad = (lat * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
+  // Guard against division by near-zero at the extreme poles
+  const deltaLng =
+    Math.abs(cosLat) > 0.00001
+      ? (radius / (EARTH_RADIUS_KM * Math.abs(cosLat))) * (180 / Math.PI)
+      : deltaLat;
+
+  return {
+    minLat: lat - deltaLat,
+    maxLat: lat + deltaLat,
+    minLng: lng - deltaLng,
+    maxLng: lng + deltaLng,
+  };
+}
+
+/**
+ * Returns a Prisma/SQL WHERE clause object for bounding-box range queries
+ * leveraging the composite (latitude, longitude) index.
+ *
+ * @param {number} centerLat
+ * @param {number} centerLng
+ * @param {number} radiusKm
+ * @returns {{ latitude: { gte: number, lte: number }, longitude: { gte: number, lte: number } }}
+ */
+function getBoundingBoxWhereClause(centerLat, centerLng, radiusKm) {
+  const { minLat, maxLat, minLng, maxLng } = calculateBoundingBox(centerLat, centerLng, radiusKm);
+  return {
+    latitude: {
+      gte: minLat,
+      lte: maxLat,
+    },
+    longitude: {
+      gte: minLng,
+      lte: maxLng,
+    },
+  };
+}
+
 module.exports = {
   calculateHaversineDistance,
   calculateRoadDistanceAndEta,
@@ -358,4 +419,6 @@ module.exports = {
   geocodeAddress,
   reverseGeocode,
   autocompletePlaces,
+  calculateBoundingBox,
+  getBoundingBoxWhereClause,
 };
