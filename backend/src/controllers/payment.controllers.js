@@ -253,43 +253,80 @@ const handleRazorpayWebhook = asyncHandler(async (req, res) => {
     const razorpayPaymentId = paymentEntity?.id;
     const amountInRupees = (paymentEntity?.amount || 0) / 100;
 
+    // 1. Idempotency Check: Verify if this payment_id has already been processed
+    if (razorpayPaymentId) {
+      const existingPaymentRecord = await prisma.paymentRecord.findFirst({
+        where: {
+          razorpayPaymentId,
+          status: "PAID",
+        },
+      });
+
+      if (existingPaymentRecord) {
+        logger.info(
+          `[WEBHOOK IDEMPOTENT] Razorpay payment_id ${razorpayPaymentId} already processed (Record: ${existingPaymentRecord.id}). Skipping duplicate webhook.`,
+        );
+        return res.status(200).json({
+          received: true,
+          idempotent: true,
+          event,
+          message: "Payment already processed",
+        });
+      }
+    }
+
     if (razorpayOrderId) {
       const order = await prisma.order.findFirst({
         where: { razorpayOrderId },
       });
 
-      if (order && order.paymentStatus !== "PAID") {
-        await prisma.$transaction(async (tx) => {
-          await tx.order.update({
-            where: { id: order.id },
-            data: {
-              paymentStatus: "PAID",
-              razorpayPaymentId,
-              timeline: {
-                create: [
-                  {
-                    status: order.status,
-                    note: `Payment of ₹${amountInRupees} verified via asynchronous Razorpay Webhook (${event})`,
-                    actorRole: "system",
-                  },
-                ],
-              },
-            },
+      if (order) {
+        if (order.paymentStatus === "PAID") {
+          logger.info(
+            `[WEBHOOK IDEMPOTENT] Order ${order.orderNumber} already marked PAID. Skipping duplicate webhook.`,
+          );
+          return res.status(200).json({
+            received: true,
+            idempotent: true,
+            event,
+            message: "Order already paid",
           });
+        }
 
-          await tx.paymentRecord.create({
-            data: {
-              orderId: order.id,
-              userId: order.userId,
-              razorpayOrderId,
-              razorpayPaymentId,
-              amount: amountInRupees,
-              status: "PAID",
-              method: "RAZORPAY",
-              metadata: { event, webhookId: req.body?.account_id },
-            },
-          });
-        });
+        await prisma.$transaction(
+          async (tx) => {
+            await tx.order.update({
+              where: { id: order.id },
+              data: {
+                paymentStatus: "PAID",
+                razorpayPaymentId,
+                timeline: {
+                  create: [
+                    {
+                      status: order.status,
+                      note: `Payment of ₹${amountInRupees} verified via asynchronous Razorpay Webhook (${event})`,
+                      actorRole: "system",
+                    },
+                  ],
+                },
+              },
+            });
+
+            await tx.paymentRecord.create({
+              data: {
+                orderId: order.id,
+                userId: order.userId,
+                razorpayOrderId,
+                razorpayPaymentId,
+                amount: amountInRupees,
+                status: "PAID",
+                method: "RAZORPAY",
+                metadata: { event, webhookId: req.body?.account_id },
+              },
+            });
+          },
+          { maxWait: 15000, timeout: 25000 },
+        );
 
         logger.info(`[WEBHOOK SYNC] Order ${order.orderNumber} marked PAID via webhook`);
       }
@@ -330,6 +367,18 @@ const handleRazorpayWebhook = asyncHandler(async (req, res) => {
         where: { razorpayPaymentId: paymentId },
       });
       if (order) {
+        if (order.paymentStatus === "REFUNDED") {
+          logger.info(
+            `[WEBHOOK IDEMPOTENT] Refund for payment ${paymentId} already processed on Order ${order.orderNumber}. Skipping duplicate webhook.`,
+          );
+          return res.status(200).json({
+            received: true,
+            idempotent: true,
+            event,
+            message: "Refund already processed",
+          });
+        }
+
         await prisma.order.update({
           where: { id: order.id },
           data: {
