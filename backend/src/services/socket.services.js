@@ -8,11 +8,75 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { Server } = require("socket.io");
+const { createAdapter } = require("@socket.io/redis-adapter");
+const { createClient } = require("redis");
 const jwt = require("jsonwebtoken");
 const config = require("../config/index");
 const logger = require("../config/logger");
 
 let io = null;
+let pubClient = null;
+let subClient = null;
+
+/**
+ * Initializes and wires the Socket.io Redis adapter using a dedicated Pub/Sub client pair.
+ * In production, fails fast with process.exit(1) if connection cannot be established.
+ * In development, gracefully falls back to the in-memory adapter if Redis is offline.
+ * @param {Server} targetIO
+ * @param {string} [redisUrl]
+ * @returns {Promise<{ pubClient: any, subClient: any }|null>}
+ */
+async function setupRedisAdapter(targetIO, redisUrl) {
+  const ioInstance = targetIO || io;
+  if (!ioInstance) {
+    throw new Error("Socket.io instance must be initialized before attaching Redis adapter");
+  }
+
+  const url = redisUrl || config.redis?.url || process.env.REDIS_URL;
+  if (!url) {
+    if (config.isProd) {
+      logger.error("❌ REDIS_URL is missing — cannot initialize Socket.io Redis adapter in production.");
+      process.exit(1);
+    }
+    logger.warn("⚠️ REDIS_URL not configured — running Socket.io with in-memory adapter.");
+    return null;
+  }
+
+  try {
+    const clientOptions = {
+      url,
+      socket: {
+        connectTimeout: 2000,
+        reconnectStrategy: (retries) => (retries > 1 ? false : 500),
+      },
+    };
+
+    pubClient = createClient(clientOptions);
+    subClient = pubClient.duplicate();
+
+    pubClient.on("error", (err) => {
+      if (config.isProd) logger.error("Redis PubClient error:", { error: err.message });
+    });
+    subClient.on("error", (err) => {
+      if (config.isProd) logger.error("Redis SubClient error:", { error: err.message });
+    });
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    ioInstance.adapter(createAdapter(pubClient, subClient));
+    logger.info("⚡ Socket.io Redis adapter connected & initialized successfully");
+    return { pubClient, subClient };
+  } catch (err) {
+    if (config.isProd) {
+      logger.error("❌ Failed to connect Socket.io Redis adapter — shutting down", {
+        error: err.message,
+        url,
+      });
+      process.exit(1);
+    }
+    logger.warn(`⚠️ Redis server offline at ${url} — using Socket.io local memory adapter for development.`);
+    return null;
+  }
+}
 
 /**
  * Extracts and verifies JWT from handshake auth, query, headers, or cookies.
@@ -55,7 +119,7 @@ function extractTokenFromHandshake(handshake) {
  * @param {import("http").Server} httpServer
  * @returns {Server}
  */
-function initSocket(httpServer) {
+function initSocket(httpServer, options = {}) {
   io = new Server(httpServer, {
     cors: {
       origin: config.cors.allowedOrigins,
@@ -64,7 +128,12 @@ function initSocket(httpServer) {
     },
     pingTimeout: 60000,
     pingInterval: 25000,
+    ...options,
   });
+
+  if (options.adapter) {
+    io.adapter(options.adapter);
+  }
 
   // ── Authentication Middleware ─────────────────────────────────────────────
   io.use((socket, next) => {
@@ -148,6 +217,33 @@ function initSocket(httpServer) {
           coordinates: data.coordinates, // [lng, lat]
           timestamp: new Date(),
         });
+      }
+    });
+
+    // Rider claims an order over WebSocket
+    socket.on("order:claim", async (data) => {
+      if (socket.user.role === "deliverypartner" && data?.orderId) {
+        const orderId = data.orderId;
+        try {
+          const { claimAndAssignOrder } = require("./dispatch.services");
+          const updatedOrder = await claimAndAssignOrder({
+            orderId,
+            riderId: userId,
+            riderName: socket.user.name || "Delivery Partner",
+          });
+          socket.emit("order:claim:accepted", { orderId, order: updatedOrder });
+        } catch (err) {
+          logger.warn(
+            `Socket claim failed for rider ${userId} on order ${orderId}: ${err.message}`
+          );
+          socket.emit("order:claim:rejected", {
+            orderId,
+            reason:
+              err.statusCode === 409 || err.message.includes("already")
+                ? "already_assigned"
+                : err.message,
+          });
+        }
       }
     });
 
@@ -237,7 +333,9 @@ function emitToAdmin(event, data) {
 
 module.exports = {
   initSocket,
+  setupRedisAdapter,
   getIO,
+  getPubSubClients: () => ({ pubClient, subClient }),
   emitToUser,
   emitToPartner,
   emitToRider,
