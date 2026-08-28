@@ -24,7 +24,13 @@ const {
   notifyOrderDelivered,
   notifyRefundCredited,
 } = require("../services/notification.services");
-const { autoDispatchOrder } = require("../services/dispatch.services");
+const {
+  autoDispatchOrder,
+  claimAndAssignOrder,
+  clearPickupTimeout,
+} = require("../services/dispatch.services");
+const { scheduleOrderSlaJob } = require("../queues/orderSla.queue");
+const redisServices = require("../services/redis.services");
 const logger = require("../config/logger");
 
 function computeCartPricing(items = [], appliedCoupon = null, tipAmount = 0) {
@@ -109,6 +115,45 @@ function formatOrderResponse(order, currentUserId, currentUserRole) {
  */
 const placeOrder = asyncHandler(async (req, res) => {
   const userId = req.user.id;
+  const idempotencyKey =
+    req.headers["idempotency-key"] ||
+    req.headers["x-idempotency-key"] ||
+    req.body?.idempotencyKey;
+
+  // 1. Idempotency Key validation & retrieval
+  let redisIdempotencyKey = null;
+  if (idempotencyKey && typeof idempotencyKey === "string" && idempotencyKey.trim() !== "") {
+    const cleanKey = idempotencyKey.trim();
+    redisIdempotencyKey = `idempotency:order:${userId}:${cleanKey}`;
+
+    // Check if this idempotency key was already processed recently
+    const cachedOrderId = await redisServices.get(redisIdempotencyKey);
+    if (cachedOrderId) {
+      const existingOrder = await prisma.order.findUnique({
+        where: { id: cachedOrderId },
+        include: {
+          partner: true,
+          items: true,
+          timeline: true,
+          user: true,
+          deliveryPartner: true,
+        },
+      });
+
+      if (existingOrder) {
+        logger.info(
+          `[IDEMPOTENCY HIT] Duplicate order placement detected for key: ${cleanKey}. Returning existing order #${existingOrder.orderNumber}`
+        );
+        const existingResponse = formatOrderResponse(existingOrder, userId, "customer");
+        return res
+          .status(200)
+          .json(new ApiResponse(200, existingResponse, "Order already placed (Idempotent response)"));
+      }
+    }
+  } else if (req.headers["idempotency-key"] === "" || (process.env.NODE_ENV === "production" && !idempotencyKey)) {
+    throw new ApiError(400, "Idempotency-Key header is required for order creation");
+  }
+
   const {
     addressId,
     deliveryAddress: directAddress,
@@ -117,7 +162,7 @@ const placeOrder = asyncHandler(async (req, res) => {
     deliveryInstructions: overrideInstructions,
   } = req.body;
 
-  // 1. Fetch user's active cart
+  // 2. Fetch user's active cart
   const cart = await prisma.cart.findUnique({
     where: { userId },
     include: {
@@ -274,6 +319,20 @@ const placeOrder = asyncHandler(async (req, res) => {
     user: req.customer || req.user,
     partner,
   }).catch((err) => logger.error("notifyOrderPlaced dispatch error:", err));
+
+  // 8. Schedule delayed SLA job (Auto-cancel if restaurant doesn't confirm in time)
+  scheduleOrderSlaJob(newOrder.id, newOrder.orderNumber).catch((err) =>
+    logger.error("Failed to schedule Order SLA job:", err),
+  );
+
+  // 9. Cache Idempotency Key mapping with 5-minute (300s) TTL
+  if (redisIdempotencyKey) {
+    try {
+      await redisServices.set(redisIdempotencyKey, newOrder.id, 300);
+    } catch (cacheErr) {
+      logger.warn(`Failed to cache order idempotency key: ${cacheErr.message}`);
+    }
+  }
 
   res.status(201).json(
     new ApiResponse(201, responseData, "Order placed successfully! 🚀"),
@@ -875,83 +934,15 @@ const getAvailableOrdersForRider = asyncHandler(async (req, res) => {
 const acceptDeliveryByRider = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const riderId = req.user.id;
+  const riderName = req.user.name || req.user.fullName || "Delivery Partner";
 
-  // 1. Verify rider doesn't already have an active uncompleted order
-  const activeOrder = await prisma.order.findFirst({
-    where: {
-      deliveryPartnerId: riderId,
-      status: { in: ["PICKED_UP", "OUT_FOR_DELIVERY"] },
-    },
-  });
-
-  if (activeOrder) {
-    throw new ApiError(
-      400,
-      `You already have an active order in progress (#${activeOrder.orderNumber}). Complete it before accepting a new one.`,
-    );
-  }
-
-  // 2. Fetch target order
-  const order = await prisma.order.findUnique({ where: { id } });
-  if (!order) {
-    throw new ApiError(404, "Order not found");
-  }
-
-  if (order.status !== "READY_FOR_PICKUP") {
-    throw new ApiError(
-      400,
-      `Cannot accept order in '${order.status}' status. Must be 'READY_FOR_PICKUP'.`,
-    );
-  }
-
-  if (order.deliveryPartnerId && order.deliveryPartnerId !== riderId) {
-    throw new ApiError(409, "Order has already been assigned to another delivery partner");
-  }
-
-  const updatedOrder = await prisma.order.update({
-    where: { id },
-    data: {
-      deliveryPartnerId: riderId,
-      timeline: {
-        create: [
-          {
-            status: order.status,
-            note: "Delivery partner accepted the order dispatch",
-            actorRole: "deliverypartner",
-            actorId: riderId,
-          },
-        ],
-      },
-    },
-    include: { items: true, timeline: true, partner: true },
-  });
-
-  // Update rider's current order pointer
-  await prisma.deliveryPartner.update({
-    where: { id: riderId },
-    data: { currentOrderId: order.id },
+  const updatedOrder = await claimAndAssignOrder({
+    orderId: id,
+    riderId,
+    riderName,
   });
 
   const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
-
-  // Real-time broadcast: Rider assigned to order
-  emitToUser(order.userId, "delivery:assigned", {
-    orderId: order.id,
-    riderId,
-    riderName: req.user.name,
-    order: formattedResp,
-  });
-  emitToPartner(order.partnerId, "delivery:assigned", {
-    orderId: order.id,
-    riderId,
-    riderName: req.user.name,
-  });
-  emitToOrder(order.id, "order:status_update", {
-    orderId: order.id,
-    status: "READY_FOR_PICKUP",
-    deliveryPartnerId: riderId,
-    order: formattedResp,
-  });
 
   res
     .status(200)
@@ -991,6 +982,9 @@ const pickupOrderByRider = asyncHandler(async (req, res) => {
     },
     include: { items: true, timeline: true },
   });
+
+  // Clear the 30-second pickup confirmation watcher since pickup is confirmed
+  clearPickupTimeout(order.id);
 
   const formattedResp = formatOrderResponse(updatedOrder, riderId, "deliverypartner");
 

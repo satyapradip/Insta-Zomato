@@ -75,7 +75,20 @@ async function creditWallet({ userId, amount, description, orderId = null, refer
       throw new ApiError(403, "This wallet has been disabled or suspended");
     }
 
-    // 2. Compute updated balance
+    // 2. Idempotency Check: Prevent duplicate credit for the same reference ID
+    if (referenceId) {
+      const existingTx = await tx.walletTransaction.findFirst({
+        where: { referenceId, type: "CREDIT" },
+      });
+      if (existingTx) {
+        logger.info(
+          `[WALLET IDEMPOTENT] Reference ID ${referenceId} has already been credited to user ${userId}. Returning existing transaction.`,
+        );
+        return { wallet, transaction: existingTx };
+      }
+    }
+
+    // 3. Compute updated balance
     const newBalance = Math.round((wallet.balance + numAmount) * 100) / 100;
 
     // 3. Update wallet balance
@@ -99,7 +112,7 @@ async function creditWallet({ userId, amount, description, orderId = null, refer
 
     logger.info(`[WALLET CREDIT] User ${userId} +₹${numAmount} | New Balance: ₹${newBalance}`);
     return { wallet: updatedWallet, transaction };
-  });
+  }, { maxWait: 15000, timeout: 25000 });
 }
 
 /**
@@ -158,7 +171,7 @@ async function debitWallet({ userId, amount, description, orderId = null, refere
 
     logger.info(`[WALLET DEBIT] User ${userId} -₹${numAmount} | Remaining Balance: ₹${newBalance}`);
     return { wallet: updatedWallet, transaction };
-  });
+  }, { maxWait: 15000, timeout: 25000 });
 }
 
 /**

@@ -1,0 +1,18 @@
+{
+  "name": "Insta-Zomato Rider Fleet",
+  "short_name": "IZ Rider",
+  "description": "Real-time GPS order dispatch and turn-by-turn navigation for Insta-Zomato delivery partners.",
+  "start_url": "/rider",
+  "scope": "/rider",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090A0F",
+  "theme_color": "#FF385C",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

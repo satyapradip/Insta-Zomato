@@ -12,8 +12,8 @@
 const { prisma } = require("../db/prisma");
 const Notification = require("../models/notification.models");
 const { emitToUser, emitToPartner, emitToRider } = require("./socket.services");
-const { sendEmail, renderOrderInvoiceTemplate, renderOrderDeliveredTemplate } = require("./email.services");
-const { sendOtpSms } = require("./sms.services");
+const { renderOrderInvoiceTemplate, renderOrderDeliveredTemplate } = require("./email.services");
+const { enqueueEmailJob, enqueueSmsJob } = require("../queues/notification.queue");
 const logger = require("../config/logger");
 
 /**
@@ -80,7 +80,7 @@ async function notifyRecipient({
       }
     }
 
-    // 2. Real-time WebSocket emission
+    // 2. Real-time WebSocket emission (Synchronous)
     const socketPayload = {
       id: notification ? (notification.id || notification._id) : `notif-${Date.now()}`,
       type,
@@ -98,22 +98,22 @@ async function notifyRecipient({
       emitToRider(recipientId, "notification:new", socketPayload);
     }
 
-    // 3. Email Channel Dispatch (Non-blocking)
+    // 3. Email Channel Dispatch (Asynchronous BullMQ Queue)
     if (channels.includes("EMAIL") && recipientEmail) {
-      sendEmail({
+      await enqueueEmailJob({
         to: recipientEmail,
         subject: title,
         html: emailHtml || `<p>${message}</p>`,
-      }).catch((err) => logger.error("Async email dispatch failed:", err));
+      });
     }
 
-    // 4. SMS Channel Dispatch (Non-blocking)
+    // 4. SMS Channel Dispatch (Asynchronous BullMQ Queue)
     if (channels.includes("SMS") && recipientPhone && data.otp) {
-      sendOtpSms({
+      await enqueueSmsJob({
         phone: recipientPhone,
         otp: data.otp,
         orderNumber: data.orderNumber || "",
-      }).catch((err) => logger.error("Async SMS dispatch failed:", err));
+      });
     }
 
     return notification;

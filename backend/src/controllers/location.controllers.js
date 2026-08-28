@@ -137,8 +137,11 @@ const getNearbyRestaurants = asyncHandler(async (req, res) => {
   const userLng = parseFloat(longitude);
   const maxRadiusKm = parseFloat(radius);
 
-  // Fetch active approved partners from database
-  const where = {};
+  // 1. Calculate indexed bounding-box WHERE clause (minLat/maxLat, minLng/maxLng)
+  const geoBounds = mapService.getBoundingBoxWhereClause(userLat, userLng, maxRadiusKm);
+  const where = {
+    ...geoBounds,
+  };
   if (isOpen !== undefined) {
     where.isOpen = isOpen === "true" || isOpen === true;
   }

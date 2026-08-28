@@ -19,6 +19,8 @@ interface LocationPoint {
 interface LiveDeliveryMapProps {
   origin?: LocationPoint; // Restaurant
   destination?: LocationPoint; // Customer Doorstep
+  restaurantLocation?: LocationPoint;
+  customerLocation?: LocationPoint;
   riderLocation?: { lat: number; lng: number };
   riderProgress?: number; // 0 to 100
   etaMinutes?: number;
@@ -86,13 +88,17 @@ function generateRoadWaypoints(
 }
 
 export function LiveDeliveryMap({
-  origin = { lat: 12.9784, lng: 77.6408, name: "The Gourmet Grill" },
-  destination = { lat: 12.9352, lng: 77.6245, name: "Your Doorstep" },
+  origin,
+  destination,
+  restaurantLocation,
+  customerLocation,
   riderProgress = 60,
   etaMinutes = 14,
   status = "OUT_FOR_DELIVERY",
   className = "w-full h-72 md:h-96",
 }: LiveDeliveryMapProps) {
+  const actualOrigin = origin || restaurantLocation || { lat: 12.9784, lng: 77.6408, name: "The Gourmet Grill" };
+  const actualDestination = destination || customerLocation || { lat: 12.9352, lng: 77.6245, name: "Your Doorstep" };
   const { resolvedTheme } = useTheme();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -104,7 +110,7 @@ export function LiveDeliveryMap({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState(false);
 
-  const roadDistKm = calculateDistanceKm(origin.lat, origin.lng, destination.lat, destination.lng);
+  const roadDistKm = calculateDistanceKm(actualOrigin.lat, actualOrigin.lng, actualDestination.lat, actualDestination.lng);
   const [distanceText, setDistanceText] = useState(`${roadDistKm > 0 ? roadDistKm : 2.4} km`);
   const [durationText, setDurationText] = useState(`${etaMinutes} mins`);
 
@@ -117,8 +123,8 @@ export function LiveDeliveryMap({
 
         const isDark = resolvedTheme === "dark";
 
-        const centerLat = (origin.lat + destination.lat) / 2;
-        const centerLng = (origin.lng + destination.lng) / 2;
+        const centerLat = (actualOrigin.lat + actualDestination.lat) / 2;
+        const centerLng = (actualOrigin.lng + actualDestination.lng) / 2;
 
         const map = new maps.Map(mapRef.current, {
           center: { lat: centerLat, lng: centerLng },
@@ -132,9 +138,9 @@ export function LiveDeliveryMap({
 
         // 1. Restaurant Marker (Amber Origin)
         new maps.Marker({
-          position: { lat: origin.lat, lng: origin.lng },
+          position: { lat: actualOrigin.lat, lng: actualOrigin.lng },
           map,
-          title: origin.name || "Restaurant Kitchen",
+          title: actualOrigin.name || "Restaurant Kitchen",
           icon: {
             path: maps.SymbolPath.CIRCLE,
             scale: 10,
@@ -147,9 +153,9 @@ export function LiveDeliveryMap({
 
         // 2. Customer Destination Marker (Emerald Dropoff)
         new maps.Marker({
-          position: { lat: destination.lat, lng: destination.lng },
+          position: { lat: actualDestination.lat, lng: actualDestination.lng },
           map,
-          title: destination.name || "Customer Doorstep",
+          title: actualDestination.name || "Customer Doorstep",
           icon: {
             path: maps.SymbolPath.CIRCLE,
             scale: 10,
@@ -162,8 +168,8 @@ export function LiveDeliveryMap({
 
         // 3. Generate high-precision urban road route polyline
         const waypoints = generateRoadWaypoints(
-          { lat: origin.lat, lng: origin.lng },
-          { lat: destination.lat, lng: destination.lng }
+          { lat: actualOrigin.lat, lng: actualOrigin.lng },
+          { lat: actualDestination.lat, lng: actualDestination.lng }
         );
         routePointsRef.current = waypoints;
 
@@ -213,8 +219,8 @@ export function LiveDeliveryMap({
 
         // 5. Fit bounds to keep entire route in view
         const bounds = new maps.LatLngBounds();
-        bounds.extend({ lat: origin.lat, lng: origin.lng });
-        bounds.extend({ lat: destination.lat, lng: destination.lng });
+        bounds.extend({ lat: actualOrigin.lat, lng: actualOrigin.lng });
+        bounds.extend({ lat: actualDestination.lat, lng: actualDestination.lng });
         map.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
 
         setMapLoaded(true);
@@ -227,7 +233,7 @@ export function LiveDeliveryMap({
     return () => {
       isMounted = false;
     };
-  }, [origin.lat, origin.lng, destination.lat, destination.lng, resolvedTheme]);
+  }, [actualOrigin.lat, actualOrigin.lng, actualDestination.lat, actualDestination.lng, resolvedTheme]);
 
   // Smoothly update Rider position along route polyline
   useEffect(() => {
@@ -290,7 +296,7 @@ export function LiveDeliveryMap({
       <div className="absolute bottom-3.5 left-3.5 right-3.5 z-10 flex items-center justify-between pointer-events-none">
         <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 text-white flex items-center gap-2 text-[11px] font-bold shadow-lg">
           <ChefHat className="w-3.5 h-3.5 text-amber-400" />
-          <span className="truncate max-w-[120px] sm:max-w-[180px]">{origin.name}</span>
+          <span className="truncate max-w-[120px] sm:max-w-[180px]">{actualOrigin.name}</span>
         </div>
 
         <div className="bg-primary text-white px-3.5 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5 text-xs font-black">

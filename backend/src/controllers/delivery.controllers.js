@@ -15,7 +15,11 @@ const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
 const ApiResponse = require("../utils/ApiResponse");
 const { emitToOrder, emitToUser } = require("../services/socket.services");
-const { acceptDispatchOffer, rejectDispatchOffer } = require("../services/dispatch.services");
+const {
+  claimAndAssignOrder,
+  acceptDispatchOffer,
+  rejectDispatchOffer,
+} = require("../services/dispatch.services");
 const { calculateDeliveryPayout, getRiderEarningsSummary } = require("../services/earnings.services");
 const { calculateHaversineDistance } = require("../services/map.services");
 
@@ -260,15 +264,17 @@ const getAvailableOrders = asyncHandler(async (req, res) => {
 const acceptOrder = asyncHandler(async (req, res) => {
   const riderId = req.user.id;
   const { id: orderId } = req.params;
+  const riderName = req.user.name || req.user.fullName || "Delivery Partner";
 
-  try {
-    const updatedOrder = await acceptDispatchOffer(orderId, riderId);
-    return res.status(200).json(
-      new ApiResponse(200, { order: updatedOrder }, "Delivery offer accepted successfully! 🛵")
-    );
-  } catch (error) {
-    throw new ApiError(400, error.message);
-  }
+  const updatedOrder = await claimAndAssignOrder({
+    orderId,
+    riderId,
+    riderName,
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, { order: updatedOrder }, "Delivery offer accepted successfully! 🛵")
+  );
 });
 
 /**

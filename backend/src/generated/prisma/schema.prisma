@@ -5,9 +5,18 @@ generator client {
   output   = "../src/generated/prisma"
 }
 
+// ── Database Configuration ───────────────────────────────────────────────────
+// Note on Dual URLs for Neon Serverless PostgreSQL:
+// - url (DATABASE_URL): Pooled connection (PgBouncer / neon-pooler). Used by Prisma
+//   Client at runtime to prevent connection pool exhaustion under high concurrent load.
+// - directUrl (DIRECT_URL): Direct non-pooled connection. Used exclusively by Prisma CLI
+//   for schema migrations (prisma migrate / db push) and DDL operations requiring session-level
+//   locks/state that connection poolers do not support.
+// DO NOT collapse or simplify these back to a single URL.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ── Enums ───────────────────────────────────────────────────────────────────
@@ -128,6 +137,8 @@ model FoodPartner {
 
   @@index([email])
   @@index([city])
+  @@index([isApproved, isOpen])
+  @@index([latitude, longitude])
 }
 
 model DeliveryPartner {
@@ -155,6 +166,8 @@ model DeliveryPartner {
 
   @@index([email])
   @@index([isOnline])
+  @@index([isApproved, isOnline])
+  @@index([latitude, longitude])
 }
 
 model Food {
@@ -196,6 +209,9 @@ model Food {
   @@index([foodPartnerId])
   @@index([category])
   @@index([isAvailable])
+  @@index([foodPartnerId, isAvailable])
+  @@index([category, isAvailable])
+  @@index([likeCount])
 }
 
 model FoodVariant {
@@ -370,6 +386,10 @@ model Order {
   @@index([partnerId])
   @@index([deliveryPartnerId])
   @@index([status])
+  @@index([userId, status])
+  @@index([partnerId, status])
+  @@index([deliveryPartnerId, status])
+  @@index([createdAt])
 }
 
 model OrderItem {
