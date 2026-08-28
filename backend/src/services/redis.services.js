@@ -32,6 +32,15 @@ class InMemoryCache {
     this.store.set(key, { value, expiresAt });
   }
 
+  setNX(key, value, ttlSeconds = 30) {
+    const existing = this.get(key);
+    if (existing !== null && existing !== undefined) {
+      return false;
+    }
+    this.set(key, value, ttlSeconds);
+    return true;
+  }
+
   del(key) {
     this.store.delete(key);
   }
@@ -110,6 +119,55 @@ async function set(key, value, ttlSeconds = 60) {
 }
 
 /**
+ * Acquires an atomic lock using SET with NX and EX flags.
+ * Returns true if acquired, false if key already exists.
+ * @param {string} key
+ * @param {any} value
+ * @param {number} [ttlSeconds=30]
+ * @returns {Promise<boolean>}
+ */
+async function acquireLock(key, value, ttlSeconds = 30) {
+  try {
+    if (isRedisConnected && redisClient) {
+      const serialized = JSON.stringify(value);
+      const result = await redisClient.set(key, serialized, "NX", "EX", ttlSeconds);
+      const acquired = result === "OK" || result === true;
+      if (acquired) {
+        inMemoryStore.set(key, value, ttlSeconds);
+      }
+      return acquired;
+    }
+    return inMemoryStore.setNX(key, value, ttlSeconds);
+  } catch (error) {
+    logger.warn(`acquireLock failed for key: ${key}`, { error: error.message });
+    return inMemoryStore.setNX(key, value, ttlSeconds);
+  }
+}
+
+/**
+ * Releases a lock safely. If expectedValue is provided, only releases if current value matches.
+ * @param {string} key
+ * @param {any} [expectedValue=null]
+ * @returns {Promise<boolean>}
+ */
+async function releaseLock(key, expectedValue = null) {
+  try {
+    if (expectedValue !== null && expectedValue !== undefined) {
+      const currentVal = await get(key);
+      if (currentVal !== expectedValue) {
+        return false;
+      }
+    }
+    await del(key);
+    return true;
+  } catch (error) {
+    logger.warn(`releaseLock failed for key: ${key}`, { error: error.message });
+    await del(key);
+    return true;
+  }
+}
+
+/**
  * Deletes a single cache key.
  * @param {string} key
  */
@@ -159,6 +217,9 @@ async function flush() {
 module.exports = {
   get,
   set,
+  acquireLock,
+  releaseLock,
+  setNX: acquireLock,
   del,
   delPattern,
   flush,
