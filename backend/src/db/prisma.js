@@ -13,7 +13,7 @@ const prisma = new PrismaClient({
       : ["error"],
 });
 
-async function connectPostgres(maxRetries = 3, delayMs = 1500) {
+async function connectPostgres(maxRetries = 5, delayMs = 2000) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await prisma.$connect();

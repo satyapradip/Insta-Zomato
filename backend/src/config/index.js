@@ -29,8 +29,13 @@ const envSchema = z.object({
     .default("development"),
   PORT: z.coerce.number().default(3000),
 
-  // ── Database ───────────────────────────────────────────────────────────────
-  DATABASE_URL: z.string().optional(),
+  // ── Database (Neon Serverless PostgreSQL) ──────────────────────────────────
+  DATABASE_URL: z
+    .string()
+    .min(1, "DATABASE_URL (Neon pooled connection string) is required"),
+  DIRECT_URL: z
+    .string()
+    .min(1, "DIRECT_URL (Neon direct connection string for migrations) is required"),
   MONGO_URI: z.string().optional(),
 
   // ── JWT ────────────────────────────────────────────────────────────────────
@@ -63,11 +68,17 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
 
-  // ── Redis (Phase 15 — Caching) — optional until Phase 15 ─────────────────
-  REDIS_URL: z.string().optional(),
+  // ── Redis (Caching & Socket.io Multi-Instance Adapter) ───────────────────
+  REDIS_URL: z
+    .string()
+    .transform((val) => (val && val.trim() !== "" ? val.trim() : "redis://127.0.0.1:6379"))
+    .default("redis://127.0.0.1:6379"),
 
   // ── Google Maps (Phase 9 — Location) — optional until Phase 9 ───────────
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+
+  // ── Order SLA & Auto-Cancellation ─────────────────────────────────────────
+  ORDER_CONFIRMATION_TIMEOUT_MINUTES: z.coerce.number().default(5),
 });
 
 // ── Step 2:  Parse and validate ───────────────────────────────────────────────
@@ -104,6 +115,7 @@ const config = {
   // Database connection strings
   db: {
     databaseUrl: env.DATABASE_URL,
+    directUrl: env.DIRECT_URL,
     uri: env.MONGO_URI,
   },
 
@@ -148,6 +160,11 @@ const config = {
   // Redis — caching layer (Phase 15)
   redis: {
     url: env.REDIS_URL,
+  },
+
+  // Order SLA & Timings
+  order: {
+    confirmationTimeoutMinutes: env.ORDER_CONFIRMATION_TIMEOUT_MINUTES,
   },
 
   // Google Maps — geocoding and distance (Phase 9)
