@@ -146,7 +146,12 @@ export function AuthModal({ isOpen, onClose, defaultRole = "customer" }: AuthMod
     };
 
     const selected = demoUsers[demoRole];
-    setAuth(selected, `demo-jwt-token-${demoRole}`);
+    // Create base64-encoded JWT structure for Next.js edge middleware
+    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
+    const body = btoa(JSON.stringify({ id: selected._id, email: selected.email, role: selected.role }));
+    const demoJwt = `${header}.${body}.demo_signature`;
+
+    setAuth(selected, demoJwt);
     toast.success(`Logged in as ${selected.name} (${demoRole.toUpperCase()}) ✨`);
     onClose();
   };

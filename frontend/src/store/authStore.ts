@@ -27,6 +27,8 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, token) => {
         if (typeof window !== "undefined") {
           localStorage.setItem("accessToken", token);
+          document.cookie = `accessToken=${token}; path=/; max-age=604800; SameSite=Lax`;
+          document.cookie = `token=${token}; path=/; max-age=604800; SameSite=Lax`;
         }
         set({
           user,
@@ -38,6 +40,8 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         if (typeof window !== "undefined") {
           localStorage.removeItem("accessToken");
+          document.cookie = "accessToken=; path=/; max-age=0";
+          document.cookie = "token=; path=/; max-age=0";
         }
         set({
           user: null,
