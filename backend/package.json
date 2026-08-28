@@ -16,7 +16,14 @@
     "test:search": "node src/tests/search_discovery.test.js",
     "test:admin": "node src/tests/admin_moderation.test.js",
     "test:cache": "node src/tests/caching_optimization.test.js",
-    "test:all": "node src/tests/postgres_fsm.test.js && node src/tests/payment_wallet.test.js && node src/tests/socket_realtime.test.js && node src/tests/geospatial_maps.test.js && node src/tests/notification_multichannel.test.js && node src/tests/delivery_dispatch.test.js && node src/tests/search_discovery.test.js && node src/tests/admin_moderation.test.js && node src/tests/caching_optimization.test.js",
+    "worker": "node worker.js",
+    "test:queue": "node src/tests/bullmq_queues.test.js",
+    "test:geo-opt": "node src/tests/geospatial_optimization.test.js",
+    "test:e2e": "node src/tests/e2e_regression_lifecycle.test.js",
+    "test:race": "node src/tests/rider_claim_race.test.js",
+    "test:adapter": "node src/tests/socket_redis_adapter.test.js",
+    "test:idempotency": "node src/tests/idempotency_protection.test.js",
+    "test:all": "node src/tests/postgres_fsm.test.js && node src/tests/payment_wallet.test.js && node src/tests/socket_realtime.test.js && node src/tests/geospatial_maps.test.js && node src/tests/notification_multichannel.test.js && node src/tests/delivery_dispatch.test.js && node src/tests/search_discovery.test.js && node src/tests/admin_moderation.test.js && node src/tests/caching_optimization.test.js && node src/tests/idempotency_protection.test.js && node src/tests/bullmq_queues.test.js && node src/tests/geospatial_optimization.test.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
@@ -28,7 +35,9 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^6.4.1",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^6.0.0",
+    "bullmq": "^6.3.1",
     "cloudinary": "^2.9.0",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
@@ -46,6 +55,7 @@
     "nodemailer": "^9.0.5",
     "nodemon": "^3.1.14",
     "razorpay": "^2.9.8",
+    "redis": "^6.2.1",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "uuid": "^13.0.0",
@@ -55,6 +65,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "ioredis": "^5.11.1",
+    "ioredis-mock": "^8.13.1",
     "mongodb-memory-server": "^11.2.0",
     "prisma": "^6.4.1"
   }
